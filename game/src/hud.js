@@ -144,7 +144,7 @@ function drawMinimap(ctx, W, world) {
   label(ctx, 'SUNSET PALMS', x + 14, y + 20, 11, COLOURS.gold, '800');
   label(ctx, 'PALM COUNTY', x + MINI.width - 14, y + 20, 9, COLOURS.muted, '600', 'right');
 
-  // The camera's view cone, then the player's arrow.
+  // The camera's view cone, then the player: an arrow on foot, a car when driving.
   const player = world.player;
   const px = Math.max(x + MINI.x + 4, Math.min(x + MINI.x + MINI.w - 4, x + map.ox + player.x * map.scale));
   const py = Math.max(y + MINI.y + 4, Math.min(y + MINI.y + MINI.h - 4, y + map.oy + player.y * map.scale));
@@ -158,25 +158,84 @@ function drawMinimap(ctx, W, world) {
   ctx.arc(0, 0, 20, -0.42, 0.42);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = COLOURS.gold;
-  ctx.strokeStyle = 'rgba(40, 28, 20, 0.9)';
-  ctx.lineWidth = 1.4;
-  ctx.beginPath();
-  ctx.moveTo(8, 0);
-  ctx.lineTo(-5, 5);
-  ctx.lineTo(-2.4, 0);
-  ctx.lineTo(-5, -5);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
+  if (player.mode === 'car' && player.car !== null) {
+    ctx.fillStyle = COLOURS.gold;
+    ctx.strokeStyle = 'rgba(40, 28, 20, 0.9)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.roundRect(-4.5, -2.6, 9, 5.2, 1.5);
+    ctx.fill();
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = COLOURS.gold;
+    ctx.strokeStyle = 'rgba(40, 28, 20, 0.9)';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(8, 0);
+    ctx.lineTo(-5, 5);
+    ctx.lineTo(-2.4, 0);
+    ctx.lineTo(-5, -5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
   ctx.restore();
+
+  const insideMap = (bx, by) => bx >= x + MINI.x && bx <= x + MINI.x + MINI.w && by >= y + MINI.y && by <= y + MINI.y + MINI.h;
+
+  // Mission marker: a yellow diamond, the one thing on the map that is not trouble.
+  if (world.mission !== null && world.mission.active) {
+    const bx = x + map.ox + world.mission.target.x * map.scale;
+    const by = y + map.oy + world.mission.target.y * map.scale;
+    if (insideMap(bx, by)) {
+      const pulse = 0.75 + 0.25 * Math.sin(world.time * 4);
+      ctx.save();
+      ctx.translate(bx, by);
+      ctx.rotate(Math.PI / 4);
+      ctx.globalAlpha = pulse;
+      ctx.fillStyle = COLOURS.mission;
+      ctx.fillRect(-4, -4, 8, 8);
+      ctx.strokeStyle = 'rgba(32, 24, 14, 0.9)';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(-4, -4, 8, 8);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // Police cruisers: pulsing red dots with a pale ring, the loudest thing on the map.
+  const pulse = 0.5 + 0.5 * Math.sin(world.time * 9);
+  for (let i = 0; i < world.police.units.length; i += 1) {
+    const unit = world.police.units[i];
+    const bx = x + map.ox + unit.x * map.scale;
+    const by = y + map.oy + unit.y * map.scale;
+    if (!insideMap(bx, by)) continue;
+    ctx.fillStyle = `rgba(255, 90, 77, ${0.65 + pulse * 0.35})`;
+    ctx.beginPath();
+    ctx.arc(bx, by, 4 + pulse * 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 236, 220, 0.9)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+  for (let i = 0; i < world.officers.length; i += 1) {
+    const officer = world.officers[i];
+    if (officer.down || officer.hp <= 0) continue;
+    const bx = x + map.ox + officer.x * map.scale;
+    const by = y + map.oy + officer.y * map.scale;
+    if (!insideMap(bx, by)) continue;
+    ctx.fillStyle = 'rgba(255, 122, 104, 0.9)';
+    ctx.beginPath();
+    ctx.arc(bx, by, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   if (world.blips.length > 0) {
     for (let i = 0; i < world.blips.length; i += 1) {
       const blip = world.blips[i];
       const bx = x + map.ox + blip.x * map.scale;
       const by = y + map.oy + blip.y * map.scale;
-      if (bx < x + MINI.x || bx > x + MINI.x + MINI.w || by < y + MINI.y || by > y + MINI.y + MINI.h) continue;
+      if (!insideMap(bx, by)) continue;
       ctx.fillStyle = blip.colour ?? COLOURS.police;
       ctx.beginPath();
       ctx.arc(bx, by, 2.6, 0, Math.PI * 2);
@@ -217,6 +276,141 @@ function drawClock(ctx, W, world) {
   label(ctx, dayPhase(world.clock), x + 42, y + 44, 9, COLOURS.muted, '700');
 }
 
+/** A five-point star, used for the wanted level. */
+function starPath(ctx, cx, cy, r, inner = 0.44) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i += 1) {
+    const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+    const radius = i % 2 === 0 ? r : r * inner;
+    const x = cx + Math.cos(angle) * radius;
+    const y = cy + Math.sin(angle) * radius;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+}
+
+function drawWanted(ctx, W, world) {
+  const wanted = world.police.wanted;
+  const w = 206;
+  const h = 46;
+  const x = W - MINI_PAD - w;
+  const y = 226;
+  panel(ctx, x, y, w, h, 12, 'rgba(22, 19, 26, 0.86)');
+
+  ctx.fillStyle = wanted > 0 ? COLOURS.red : 'rgba(255, 255, 255, 0.10)';
+  ctx.beginPath();
+  ctx.roundRect(x, y, 4, h, [12, 0, 0, 12]);
+  ctx.fill();
+
+  label(ctx, 'WANTED', x + 14, y + 19, 9, wanted > 0 ? COLOURS.gold : COLOURS.muted, '800');
+  const cy = y + 26;
+  for (let i = 0; i < 5; i += 1) {
+    const cx = x + 78 + i * 25;
+    const active = i < wanted;
+    if (active) {
+      const glow = 0.18 + 0.12 * Math.sin(world.time * 6 + i * 1.2);
+      ctx.fillStyle = `rgba(255, 90, 77, ${glow.toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = COLOURS.gold;
+      starPath(ctx, cx, cy, 10.5);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(180, 84, 40, 0.9)';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      starPath(ctx, cx - 1, cy - 1.5, 4.6);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = 'rgba(255, 244, 223, 0.10)';
+      starPath(ctx, cx, cy, 10.5);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 244, 223, 0.22)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+  }
+}
+
+function wrapLabel(ctx, text, x, y, maxWidth, lineHeight, maxLines, size, colour, weight) {
+  ctx.font = font(size, weight);
+  ctx.fillStyle = colour;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  const words = text.split(' ');
+  let line = '';
+  let drawn = 0;
+  for (let i = 0; i < words.length; i += 1) {
+    const test = line === '' ? words[i] : `${line} ${words[i]}`;
+    if (ctx.measureText(test).width > maxWidth && line !== '') {
+      ctx.fillText(line, x, y + drawn * lineHeight);
+      drawn += 1;
+      line = words[i];
+      if (drawn >= maxLines) return;
+    } else {
+      line = test;
+    }
+  }
+  if (line !== '' && drawn < maxLines) ctx.fillText(line, x, y + drawn * lineHeight);
+}
+
+function drawMission(ctx, world) {
+  const mission = world.mission;
+  if (mission === null) return;
+  const x = 24;
+  const y = 100;
+  const w = 318;
+  const h = 88;
+  panel(ctx, x, y, w, h, 14);
+  ctx.fillStyle = COLOURS.mission;
+  ctx.beginPath();
+  ctx.roundRect(x, y, 5, h, [14, 0, 0, 14]);
+  ctx.fill();
+
+  label(ctx, 'MISSION', x + 16, y + 21, 9, COLOURS.mission, '800');
+  label(ctx, `${Math.max(0, Math.round(mission.distance / 10))} m`, x + w - 14, y + 21, 11, COLOURS.gold, '800', 'right');
+  label(ctx, mission.title, x + 16, y + 41, 16, COLOURS.text, '800');
+  wrapLabel(ctx, mission.objective, x + 16, y + 58, w - 32, 13, 2, 10, COLOURS.muted, '600');
+}
+
+function drawSpeedometer(ctx, W, H, world) {
+  const player = world.player;
+  if (player.mode !== 'car' || player.car === null) return;
+  const car = player.car;
+  const w = 244;
+  const h = 86;
+  const x = W - MINI_PAD - w;
+  const y = H - 152;
+  panel(ctx, x, y, w, h, 14);
+
+  label(ctx, `DRIVING · ${car.kind.toUpperCase()}`, x + 16, y + 21, 9, COLOURS.muted, '800');
+  const kmh = Math.round(Math.abs(car.speed) * 0.19);
+  label(ctx, String(kmh), x + 16, y + 66, 38, COLOURS.text, '900');
+  label(ctx, 'KM/H', x + 112, y + 64, 11, COLOURS.muted, '800');
+
+  const fraction = Math.min(1, kmh / 130);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
+  ctx.beginPath();
+  ctx.roundRect(x + 16, y + 72, w - 32, 6, 3);
+  ctx.fill();
+  ctx.fillStyle = fraction > 0.72 ? COLOURS.red : fraction > 0.45 ? COLOURS.goldDeep : COLOURS.green;
+  ctx.beginPath();
+  ctx.roundRect(x + 16, y + 72, Math.max(4, (w - 32) * fraction), 6, 3);
+  ctx.fill();
+
+  const gear = car.speed < -6 ? 'R' : Math.abs(car.speed) > 4 ? 'D' : 'N';
+  ctx.fillStyle = 'rgba(255, 210, 122, 0.16)';
+  ctx.beginPath();
+  ctx.roundRect(x + w - 48, y + 28, 32, 32, 8);
+  ctx.fill();
+  ctx.strokeStyle = COLOURS.hudEdge;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  label(ctx, gear, x + w - 32, y + 51, 18, COLOURS.gold, '900', 'center');
+}
+
 function drawHealth(ctx, H, world) {
   const x = 24;
   const y = H - 96;
@@ -245,15 +439,31 @@ function drawHealth(ctx, H, world) {
     ctx.lineTo(tick, y + 49);
     ctx.stroke();
   }
-  label(ctx, 'ON FOOT', x + 16, y + 64, 9, COLOURS.muted, '700');
+  const mode = player.mode === 'car' && player.car !== null ? `DRIVING · ${player.car.kind.toUpperCase()}` : 'ON FOOT';
+  label(ctx, mode, x + 16, y + 64, 9, COLOURS.muted, '700');
 }
 
-function drawHint(ctx, W, H) {
-  const w = 386;
+function drawHint(ctx, W, H, world) {
+  const driving = world.player.mode === 'car';
+  const text = driving
+    ? 'WASD DRIVE   ·   SPACE HANDBRAKE   ·   E EXIT   ·   M MUTE   ·   P PAUSE'
+    : 'WASD MOVE   ·   SHIFT RUN   ·   MOUSE / SPACE FIRE   ·   E ENTER CAR   ·   M MUTE';
+  const w = driving ? 452 : 520;
   const x = W - MINI_PAD - w;
   const y = H - 50;
-  panel(ctx, x, y, w, 30, 10, 'rgba(22, 19, 26, 0.70)');
-  label(ctx, 'WASD MOVE   ·   SHIFT RUN   ·   MOUSE AIM   ·   P PAUSE', x + w / 2, y + 19, 10, COLOURS.muted, '700', 'center');
+  panel(ctx, x, y, w, 30, 10, 'rgba(22, 19, 26, 0.72)');
+  const muted = world.audio !== null && world.audio !== undefined && world.audio.muted;
+  label(ctx, muted ? `${text}   ·   MUTED` : text, x + w / 2, y + 19, 10, muted ? COLOURS.gold : COLOURS.muted, '700', 'center');
+}
+
+function drawMessage(ctx, W, H, world) {
+  if (world.messageTimer <= 0 || world.message === '') return;
+  const alpha = Math.min(1, world.messageTimer);
+  ctx.globalAlpha = alpha;
+  const w = Math.min(520, 40 + world.message.length * 9);
+  panel(ctx, W / 2 - w / 2, H - 118, w, 34, 12, 'rgba(22, 19, 26, 0.86)');
+  label(ctx, world.message, W / 2, H - 96, 13, COLOURS.gold, '800', 'center');
+  ctx.globalAlpha = 1;
 }
 
 function drawTitle(ctx, W, H) {
@@ -291,7 +501,7 @@ function drawTitle(ctx, W, H) {
   label(ctx, 'PRESS SPACE OR CLICK TO BEGIN', centre, 435, 15, COLOURS.gold, '800', 'center');
   ctx.globalAlpha = 1;
 
-  label(ctx, 'WASD / ARROWS  MOVE      SHIFT  RUN      MOUSE  AIM      P  PAUSE', centre, 494, 11, COLOURS.muted, '700', 'center');
+  label(ctx, 'WASD MOVE   ·   E TAKE A CAR   ·   MOUSE / SPACE FIRE   ·   M MUTE   ·   P PAUSE', centre, 494, 11, COLOURS.muted, '700', 'center');
 }
 
 function drawPaused(ctx, W, H) {
@@ -316,8 +526,11 @@ function drawOver(ctx, W, H, world) {
   ctx.font = font(15, '700');
   ctx.fillStyle = COLOURS.text;
   ctx.fillText(`THE CITY KEPT $${Math.round(world.player.money).toLocaleString('en-US')}`, W / 2, H / 2 + 24);
-  ctx.fillStyle = COLOURS.gold;
-  ctx.fillText('PRESS SPACE TO GET UP AGAIN', W / 2, H / 2 + 58);
+  ctx.font = font(12, '700');
+  ctx.fillStyle = COLOURS.muted;
+  ctx.fillText(`${world.stats.kills} DOWN  ·  ${world.stats.crimes} CRIMES  ·  ${world.stats.carsStolen} CARS TAKEN`, W / 2, H / 2 + 48);
+  panel(ctx, W / 2 - 190, H / 2 + 66, 380, 44, 12, 'rgba(28, 20, 24, 0.85)');
+  label(ctx, 'PRESS SPACE TO RESPAWN', W / 2, H / 2 + 94, 14, COLOURS.gold, '800', 'center');
 }
 
 /** Paint the whole overlay for the world's current phase. */
@@ -333,8 +546,12 @@ export function drawHud(ctx, W, H, world) {
   drawMoney(ctx, world);
   drawClock(ctx, W, world);
   drawMinimap(ctx, W, world);
+  drawWanted(ctx, W, world);
+  drawMission(ctx, world);
   drawHealth(ctx, H, world);
-  drawHint(ctx, W, H);
+  drawSpeedometer(ctx, W, H, world);
+  drawHint(ctx, W, H, world);
+  drawMessage(ctx, W, H, world);
 
   if (world.phase === 'pause' || world.phase === 'paused') drawPaused(ctx, W, H);
   else if (world.phase === 'over') drawOver(ctx, W, H, world);

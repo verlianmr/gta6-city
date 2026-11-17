@@ -884,6 +884,12 @@ function drawPlayer(ctx, player) {
   const bob = Math.sin(player.walkPhase) * 1.6;
   const swing = Math.sin(player.walkPhase) * 3.4;
 
+  // A quiet gold pool marks the player in a busy plaza without an arrow over his head.
+  ctx.fillStyle = 'rgba(255, 210, 122, 0.13)';
+  ctx.beginPath();
+  ctx.ellipse(player.x, player.y, 21, 21, 0, 0, Math.PI * 2);
+  ctx.fill();
+
   ctx.fillStyle = 'rgba(48, 28, 22, 0.28)';
   ctx.beginPath();
   ctx.ellipse(player.x + 11, player.y + 7, 15, 8.5, 0, 0, Math.PI * 2);
@@ -942,6 +948,472 @@ function drawPlayer(ctx, player) {
 
   ctx.restore();
 }
+
+// ---------------------------------------------------------------- the street layer
+
+function policeGlow(ctx, car, time) {
+  const flash = Math.sin(time * 11 + car.sirenPhase);
+  const redOn = flash > 0;
+  const rgb = redOn ? '255, 56, 40' : '40, 110, 255';
+  const w = car.width;
+  ctx.save();
+  const glow = ctx.createRadialGradient(0, 0, 3, 0, 0, 58);
+  glow.addColorStop(0, `rgba(${rgb}, 0.52)`);
+  glow.addColorStop(0.45, `rgba(${rgb}, 0.20)`);
+  glow.addColorStop(1, `rgba(${rgb}, 0)`);
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(0, 0, 58, 0, Math.PI * 2);
+  ctx.fill();
+  for (const side of [-1, 1]) {
+    const isRed = side < 0;
+    const on = isRed === redOn;
+    const lamp = isRed ? '255, 56, 40' : '40, 110, 255';
+    const bloom = ctx.createRadialGradient(-2, side * w * 0.24, 1, -2, side * w * 0.24, 20);
+    bloom.addColorStop(0, `rgba(${lamp}, ${on ? 0.98 : 0.14})`);
+    bloom.addColorStop(0.4, `rgba(${lamp}, ${on ? 0.5 : 0.06})`);
+    bloom.addColorStop(1, `rgba(${lamp}, 0)`);
+    ctx.fillStyle = bloom;
+    ctx.beginPath();
+    ctx.arc(-2, side * w * 0.24, 20, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawVehicle(ctx, car, time) {
+  const l = car.length;
+  const w = car.width;
+
+  // A soft gold pool marks the car the player is driving, so it reads instantly in a chase.
+  if (car.driver === 'player' && !car.dead) {
+    ctx.fillStyle = 'rgba(255, 210, 122, 0.16)';
+    ctx.beginPath();
+    ctx.ellipse(car.x, car.y, l * 0.75, w * 0.95, car.angle, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.save();
+  ctx.translate(car.x + 7, car.y + 5);
+  ctx.rotate(car.angle);
+  ctx.fillStyle = 'rgba(48, 28, 22, 0.30)';
+  ctx.beginPath();
+  ctx.roundRect(-l / 2, -w / 2, l, w, 7);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(car.x, car.y);
+  ctx.rotate(car.angle);
+
+  // Tyres first, so the body sits on top of them.
+  ctx.fillStyle = COLOURS.tyre;
+  ctx.fillRect(-l * 0.34, -w / 2 - 1.5, 9, 4);
+  ctx.fillRect(-l * 0.34, w / 2 - 2.5, 9, 4);
+  ctx.fillRect(l * 0.24, -w / 2 - 1.5, 9, 4);
+  ctx.fillRect(l * 0.24, w / 2 - 2.5, 9, 4);
+
+  // Body, with a darker sill and a highlight along the sunward edge.
+  ctx.fillStyle = car.dead ? '#3b3531' : car.colour;
+  ctx.beginPath();
+  ctx.roundRect(-l / 2, -w / 2, l, w, 6);
+  ctx.fill();
+  ctx.strokeStyle = car.dead ? 'rgba(20, 16, 14, 0.6)' : 'rgba(32, 22, 20, 0.45)';
+  ctx.lineWidth = 1.6;
+  ctx.stroke();
+  if (car.driver === 'player' && !car.dead) {
+    ctx.strokeStyle = 'rgba(255, 210, 122, 0.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(-l / 2 - 1.5, -w / 2 - 1.5, l + 3, w + 3, 7);
+    ctx.stroke();
+  }
+  if (!car.dead) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+    ctx.beginPath();
+    ctx.roundRect(-l / 2 + 4, -w / 2 + 2, l - 8, 3, 2);
+    ctx.fill();
+  }
+
+  // Cabin: roof panel with windscreen and rear glass, then the side windows.
+  ctx.fillStyle = car.dead ? '#2b2725' : car.roof;
+  ctx.beginPath();
+  ctx.roundRect(-l * 0.2, -w * 0.34, l * 0.44, w * 0.68, 4);
+  ctx.fill();
+  ctx.fillStyle = car.dead ? '#33383a' : COLOURS.carGlassDark;
+  ctx.fillRect(l * 0.19, -w * 0.3, l * 0.1, w * 0.6);
+  ctx.fillRect(-l * 0.33, -w * 0.28, l * 0.09, w * 0.56);
+  ctx.fillStyle = car.dead ? 'rgba(40, 44, 46, 0.8)' : 'rgba(170, 214, 224, 0.55)';
+  ctx.fillRect(-l * 0.08, -w * 0.38, l * 0.2, 2);
+  ctx.fillRect(-l * 0.08, w * 0.38 - 2, l * 0.2, 2);
+
+  // Taxi sign and police livery: the two cars you can name from across the street.
+  if (car.kind === 'taxi' && !car.dead) {
+    ctx.fillStyle = '#2b2a28';
+    ctx.beginPath();
+    ctx.roundRect(-l * 0.06, -w * 0.16, l * 0.14, w * 0.32, 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffd25a';
+    ctx.beginPath();
+    ctx.roundRect(-l * 0.05, -w * 0.12, l * 0.12, w * 0.24, 2);
+    ctx.fill();
+  }
+  if (car.police && !car.dead) {
+    ctx.fillStyle = COLOURS.policeStripe;
+    ctx.fillRect(-l * 0.14, -w / 2 + 1, l * 0.28, w * 0.16);
+    ctx.fillRect(-l * 0.14, w / 2 - w * 0.16 - 1, l * 0.28, w * 0.16);
+  }
+
+  // Lights: warm at the nose, red at the tail.
+  ctx.fillStyle = car.dead ? '#5a4a3e' : COLOURS.headlight;
+  ctx.fillRect(l / 2 - 3, -w * 0.36, 3, 4.5);
+  ctx.fillRect(l / 2 - 3, w * 0.36 - 4.5, 3, 4.5);
+  ctx.fillStyle = car.dead ? '#5c2f2a' : COLOURS.taillight;
+  ctx.fillRect(-l / 2, -w * 0.36, 2.6, 4.5);
+  ctx.fillRect(-l / 2, w * 0.36 - 4.5, 2.6, 4.5);
+  if (!car.dead) {
+    ctx.fillStyle = 'rgba(255, 234, 181, 0.10)';
+    ctx.beginPath();
+    ctx.moveTo(l / 2, -w * 0.34);
+    ctx.lineTo(l / 2 + 18, -w * 0.78);
+    ctx.lineTo(l / 2 + 18, w * 0.78);
+    ctx.lineTo(l / 2, w * 0.34);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // The light bar: a white bridge with a red and a blue lamp, flashing in opposition.
+  if (car.police && !car.dead) {
+    const flash = Math.sin(time * 11 + car.sirenPhase);
+    const redOn = flash > 0;
+    policeGlow(ctx, car, time);
+    ctx.fillStyle = '#1d2026';
+    ctx.beginPath();
+    ctx.roundRect(-l * 0.08, -w * 0.56, l * 0.22, w * 1.12, 2);
+    ctx.fill();
+    ctx.fillStyle = redOn ? '#ff4a36' : '#6b2f2b';
+    ctx.beginPath();
+    ctx.roundRect(-l * 0.07, -w * 0.5, l * 0.19, w * 0.46, 1.5);
+    ctx.fill();
+    ctx.fillStyle = redOn ? '#28447c' : '#3f8bff';
+    ctx.beginPath();
+    ctx.roundRect(-l * 0.07, w * 0.04, l * 0.19, w * 0.46, 1.5);
+    ctx.fill();
+    ctx.fillStyle = '#fff8ec';
+    ctx.beginPath();
+    ctx.arc(-l * 0.02, redOn ? -w * 0.27 : w * 0.27, 2.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(-l * 0.08, -w * 0.56, l * 0.22, w * 1.12, 2);
+    ctx.stroke();
+  }
+
+  // Battle damage: a few dark scuffs once the paint has been traded away.
+  if (car.hp < car.maxHp * 0.55) {
+    ctx.fillStyle = 'rgba(30, 24, 22, 0.45)';
+    ctx.beginPath();
+    ctx.roundRect(-l * 0.1, -w * 0.28, l * 0.16, w * 0.2, 2);
+    ctx.roundRect(l * 0.06, w * 0.06, l * 0.12, w * 0.18, 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawPed(ctx, ped) {
+  const size = 1;
+  if (!ped.alive) {
+    ctx.save();
+    ctx.translate(ped.x, ped.y);
+    ctx.rotate(ped.angle + 0.9);
+    ctx.fillStyle = 'rgba(48, 28, 22, 0.25)';
+    ctx.beginPath();
+    ctx.ellipse(5, 4, 16, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = ped.pants;
+    ctx.beginPath();
+    ctx.roundRect(-12, -5, 20, 10, 4);
+    ctx.fill();
+    ctx.fillStyle = ped.shirt;
+    ctx.beginPath();
+    ctx.roundRect(-3, -6, 14, 12, 5);
+    ctx.fill();
+    ctx.fillStyle = ped.skin;
+    ctx.beginPath();
+    ctx.arc(12, 0, 4.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+  const swing = Math.sin(ped.phase) * 3;
+  ctx.fillStyle = 'rgba(48, 28, 22, 0.24)';
+  ctx.beginPath();
+  ctx.ellipse(ped.x + 5, ped.y + 4, 10, 5.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.save();
+  ctx.translate(ped.x, ped.y);
+  ctx.rotate(ped.angle);
+  ctx.scale(size, size);
+
+  ctx.fillStyle = ped.pants;
+  ctx.beginPath();
+  ctx.roundRect(-10 + swing * 0.6, -5.5, 9, 4.5, 2);
+  ctx.roundRect(-10 - swing * 0.6, 1, 9, 4.5, 2);
+  ctx.fill();
+
+  ctx.fillStyle = ped.shirt;
+  ctx.beginPath();
+  ctx.roundRect(-6, -6.5, 14, 13, 5);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(40, 24, 20, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.fillStyle = ped.skin;
+  ctx.beginPath();
+  if (ped.panic > 0) {
+    ctx.arc(0, -8.5, 2.6, 0, Math.PI * 2);
+    ctx.arc(0, 8.5, 2.6, 0, Math.PI * 2);
+  } else {
+    ctx.arc(0.5 - swing * 0.3, -7.4, 2.5, 0, Math.PI * 2);
+    ctx.arc(0.5 + swing * 0.3, 7.4, 2.5, 0, Math.PI * 2);
+  }
+  ctx.fill();
+
+  ctx.fillStyle = ped.skin;
+  ctx.beginPath();
+  ctx.arc(4.2, 0, 4.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = ped.hair;
+  ctx.beginPath();
+  ctx.arc(2.6, 0, 3.8, Math.PI * 0.5, Math.PI * 1.5);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawOfficer(ctx, officer) {
+  if (officer.down || officer.hp <= 0) {
+    ctx.save();
+    ctx.translate(officer.x, officer.y);
+    ctx.rotate(officer.angle + 0.8);
+    ctx.fillStyle = 'rgba(48, 28, 22, 0.25)';
+    ctx.beginPath();
+    ctx.ellipse(5, 4, 15, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#24324a';
+    ctx.beginPath();
+    ctx.roundRect(-12, -5, 22, 10, 4);
+    ctx.fill();
+    ctx.fillStyle = '#c98b63';
+    ctx.beginPath();
+    ctx.arc(13, 0, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+  const swing = Math.sin(officer.walk) * 2.6;
+  ctx.fillStyle = 'rgba(48, 28, 22, 0.26)';
+  ctx.beginPath();
+  ctx.ellipse(officer.x + 5, officer.y + 4, 11, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.save();
+  ctx.translate(officer.x, officer.y);
+  ctx.rotate(officer.angle);
+  ctx.fillStyle = '#26344c';
+  ctx.beginPath();
+  ctx.roundRect(-10 + swing * 0.6, -6, 9, 4.8, 2);
+  ctx.roundRect(-10 - swing * 0.6, 1.2, 9, 4.8, 2);
+  ctx.fill();
+  ctx.fillStyle = '#2c3f5e';
+  ctx.beginPath();
+  ctx.roundRect(-6, -7, 15, 14, 5);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(16, 22, 34, 0.5)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = '#8fb6ff';
+  ctx.fillRect(-2, -6, 3, 12);
+  ctx.fillStyle = '#c98b63';
+  ctx.beginPath();
+  ctx.arc(0.5 - swing * 0.3, -7.8, 2.4, 0, Math.PI * 2);
+  ctx.arc(0.5 + swing * 0.3, 7.8, 2.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#c98b63';
+  ctx.beginPath();
+  ctx.arc(4.4, 0, 4.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#1b2230';
+  ctx.beginPath();
+  ctx.arc(3.4, 0, 4.6, Math.PI * 0.55, Math.PI * 1.45);
+  ctx.fill();
+  ctx.fillStyle = '#15181e';
+  ctx.fillRect(9, -1.4, 8, 2.8);
+  ctx.restore();
+}
+
+function drawMissionMarker(ctx, mission, time) {
+  if (mission === null || !mission.active) return;
+  const pulse = 0.5 + 0.5 * Math.sin(time * 3.2);
+  const x = mission.target.x;
+  const y = mission.target.y;
+  ctx.save();
+  const glow = ctx.createRadialGradient(x, y, 4, x, y, 62);
+  glow.addColorStop(0, 'rgba(255, 211, 77, 0.35)');
+  glow.addColorStop(1, 'rgba(255, 211, 77, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(x, y, 62, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = `rgba(255, 211, 77, ${0.55 + pulse * 0.35})`;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(x, y, 28 + pulse * 7, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255, 244, 210, 0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(x, y, 17, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.translate(x, y - 4 - pulse * 3);
+  ctx.rotate(Math.PI / 4);
+  ctx.fillStyle = COLOURS.mission;
+  ctx.beginPath();
+  ctx.roundRect(-7, -7, 14, 14, 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(40, 28, 16, 0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawDecals(ctx, world) {
+  for (const decal of world.decals) {
+    if (!inView(view, decal.x - 40, decal.y - 40, 80, 80)) continue;
+    const alpha = Math.min(1, decal.life / 4);
+    if (decal.type === 'blood') {
+      ctx.fillStyle = `rgba(104, 28, 32, ${0.55 * alpha})`;
+      ctx.beginPath();
+      ctx.ellipse(decal.x, decal.y, decal.r * 1.25, decal.r * 0.85, decal.angle, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = `rgba(66, 16, 22, ${0.45 * alpha})`;
+      ctx.beginPath();
+      ctx.ellipse(decal.x + 3, decal.y + 2, decal.r * 0.7, decal.r * 0.45, decal.angle + 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = `rgba(30, 26, 24, ${0.5 * alpha})`;
+      ctx.beginPath();
+      ctx.arc(decal.x, decal.y, decal.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+function drawBullets(ctx, world) {
+  for (const bullet of world.bullets) {
+    if (!inView(view, bullet.x - 20, bullet.y - 20, 40, 40)) continue;
+    const len = 0.016;
+    ctx.strokeStyle = 'rgba(255, 226, 150, 0.35)';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(bullet.x - bullet.vx * len, bullet.y - bullet.vy * len);
+    ctx.lineTo(bullet.x, bullet.y);
+    ctx.stroke();
+    ctx.strokeStyle = '#fff4c8';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+function drawEffects(ctx, world) {
+  for (const item of world.effects) {
+    if (!inView(view, item.x - 50, item.y - 50, 100, 100)) continue;
+    const t = Math.max(0, Math.min(1, item.life / item.max));
+    if (item.type === 'spark') {
+      ctx.globalAlpha = t;
+      ctx.strokeStyle = item.colour;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(item.x, item.y);
+      ctx.lineTo(item.x - item.vx * 0.018, item.y - item.vy * 0.018);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (item.type === 'flash') {
+      ctx.save();
+      ctx.translate(item.x, item.y);
+      ctx.rotate(item.angle);
+      const glow = ctx.createRadialGradient(0, 0, 1, 0, 0, 26);
+      glow.addColorStop(0, 'rgba(255, 246, 207, 0.9)');
+      glow.addColorStop(0.4, 'rgba(255, 196, 90, 0.5)');
+      glow.addColorStop(1, 'rgba(255, 170, 60, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(0, 0, 26, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fffbe8';
+      ctx.beginPath();
+      ctx.moveTo(13, 0);
+      ctx.lineTo(2, 4);
+      ctx.lineTo(4, 0);
+      ctx.lineTo(2, -4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    } else if (item.type === 'blood') {
+      ctx.globalAlpha = t;
+      ctx.fillStyle = COLOURS.blood;
+      ctx.beginPath();
+      ctx.arc(item.x, item.y, item.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    } else if (item.type === 'smoke') {
+      const grow = 1 + (1 - t) * 2.4;
+      ctx.globalAlpha = 0.32 * t;
+      ctx.fillStyle = COLOURS.smoke;
+      ctx.beginPath();
+      ctx.arc(item.x, item.y, item.r * grow, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    } else if (item.type === 'boom') {
+      const grow = 1 + (1 - t) * 3;
+      ctx.globalAlpha = t;
+      ctx.strokeStyle = '#ffd08a';
+      ctx.lineWidth = 5 * t;
+      ctx.beginPath();
+      ctx.arc(item.x, item.y, item.r * grow, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255, 154, 60, 0.55)';
+      ctx.beginPath();
+      ctx.arc(item.x, item.y, item.r * grow * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+function drawStreetEntities(ctx, world, time) {
+  const cars = world.vehicles;
+  for (let i = 0; i < cars.length; i += 1) {
+    const car = cars[i];
+    if (!inView(view, car.x - 60, car.y - 60, 120, 120)) continue;
+    drawVehicle(ctx, car, time);
+  }
+  const peds = world.peds;
+  for (let i = 0; i < peds.length; i += 1) {
+    const ped = peds[i];
+    if (!inView(view, ped.x - 30, ped.y - 30, 60, 60)) continue;
+    drawPed(ctx, ped);
+  }
+  for (let i = 0; i < world.officers.length; i += 1) {
+    const officer = world.officers[i];
+    if (!inView(view, officer.x - 30, officer.y - 30, 60, 60)) continue;
+    drawOfficer(ctx, officer);
+  }
+}
+
 
 function drawAtmosphere(ctx, W, H, world) {
   const hour = world.clock / 60;
@@ -1016,7 +1488,12 @@ export function render(ctx, W, H, world) {
 
   drawProps(ctx, city, view, world.time);
   drawBuildings(ctx, city, view);
-  drawPlayer(ctx, world.player);
+  drawDecals(ctx, world);
+  drawMissionMarker(ctx, world.mission, world.time);
+  drawStreetEntities(ctx, world, world.time);
+  drawBullets(ctx, world);
+  drawEffects(ctx, world);
+  if (world.player.mode !== 'car') drawPlayer(ctx, world.player);
 
   ctx.restore();
   drawAtmosphere(ctx, W, H, world);

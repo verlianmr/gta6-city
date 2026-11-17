@@ -403,6 +403,11 @@ function buildSolidHash(city) {
   city.solidHash = hash;
 }
 
+/** Rebuild the collision index after a caller has removed solids (parked cars becoming vehicles). */
+export function rebuildSolidHash(city) {
+  buildSolidHash(city);
+}
+
 function querySolids(city, x, y, r, out) {
   out.length = 0;
   const cx0 = Math.floor((x - r) / CELL);

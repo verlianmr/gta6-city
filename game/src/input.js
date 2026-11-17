@@ -7,6 +7,8 @@ export const ACTION_CONFIRM = 1;
 export const ACTION_PAUSE = 2;
 export const ACTION_INTERACT = 4;
 export const ACTION_BRAKE = 8;
+export const ACTION_MUTE = 16;
+export const ACTION_FIRE = 32;
 
 const LEFT = new Set(['ArrowLeft', 'KeyA']);
 const RIGHT = new Set(['ArrowRight', 'KeyD']);
@@ -17,6 +19,7 @@ const CONFIRM = new Set(['Space', 'Enter']);
 const PAUSE = new Set(['KeyP', 'Escape']);
 const INTERACT = new Set(['KeyE']);
 const BRAKE = new Set(['Space']);
+const MUTE = new Set(['KeyM']);
 
 const RELEVANT = new Set([
   ...LEFT,
@@ -28,6 +31,7 @@ const RELEVANT = new Set([
   ...PAUSE,
   ...INTERACT,
   ...BRAKE,
+  ...MUTE,
 ]);
 
 export function createInput(canvas) {
@@ -35,7 +39,7 @@ export function createInput(canvas) {
   let actions = 0;
   let wheel = 0;
 
-  const mouse = { nx: 0.5, ny: 0.5, inside: false, moved: false };
+  const mouse = { nx: 0.5, ny: 0.5, inside: false, moved: false, firing: false };
   const viewport = { x: 0, y: 0, width: 0, height: 0 };
 
   function setMouse(event) {
@@ -58,6 +62,7 @@ export function createInput(canvas) {
     if (PAUSE.has(event.code)) actions |= ACTION_PAUSE;
     if (INTERACT.has(event.code)) actions |= ACTION_INTERACT;
     if (BRAKE.has(event.code)) actions |= ACTION_BRAKE;
+    if (MUTE.has(event.code)) actions |= ACTION_MUTE;
   });
 
   window.addEventListener('keyup', (event) => {
@@ -69,7 +74,11 @@ export function createInput(canvas) {
   canvas.addEventListener('pointermove', setMouse);
   canvas.addEventListener('pointerdown', (event) => {
     setMouse(event);
-    if (event.button === 0) actions |= ACTION_CONFIRM;
+    if (event.button === 0) {
+      actions |= ACTION_CONFIRM;
+      actions |= ACTION_FIRE;
+      mouse.firing = true;
+    }
   });
   canvas.addEventListener('pointerenter', (event) => {
     setMouse(event);
@@ -77,6 +86,9 @@ export function createInput(canvas) {
   });
   canvas.addEventListener('pointerleave', () => {
     mouse.inside = false;
+  });
+  window.addEventListener('pointerup', (event) => {
+    if (event.button === 0) mouse.firing = false;
   });
   canvas.addEventListener(
     'wheel',
@@ -92,6 +104,7 @@ export function createInput(canvas) {
   window.addEventListener('blur', () => {
     down.clear();
     mouse.inside = false;
+    mouse.firing = false;
   });
 
   return {
@@ -116,6 +129,10 @@ export function createInput(canvas) {
     },
     isDown(code) {
       return down.has(code);
+    },
+    /** True while the left mouse button is held: the pistol keeps firing at its own rate. */
+    isFiring() {
+      return mouse.firing;
     },
     /** The one-shot presses since the last call, as ACTION_* flags. */
     takeActions() {

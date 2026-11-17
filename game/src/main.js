@@ -4,12 +4,14 @@
 // over are handled here; the world owns only its own state.
 
 import { SHOT_MODE, SHOT_SEED, STEP, VIEW } from './config.js';
-import { createInput, ACTION_CONFIRM, ACTION_PAUSE } from './input.js';
+import { createInput, ACTION_CONFIRM, ACTION_INTERACT, ACTION_MUTE, ACTION_PAUSE } from './input.js';
 import { zoomCamera } from './camera.js';
 import { createWorld, startGame, update } from './world.js';
 import { render } from './render.js';
 import { drawHud } from './hud.js';
 import { stageShot } from './shots.js';
+import { createAudio } from './audio.js';
+import { toggleVehicle } from './vehicles.js';
 
 const MAX_FRAME = 0.12;
 const MAX_STEPS = 6;
@@ -76,6 +78,8 @@ function runShot(name) {
 function runGame() {
   const input = createInput(canvas);
   activeInput = input;
+  const audio = createAudio();
+  world.audio = audio;
   let accumulator = 0;
   let last = performance.now();
 
@@ -83,25 +87,45 @@ function runGame() {
     status.textContent = message;
   }
 
+  // Browsers only allow an AudioContext to start inside a gesture; the first key or click unlocks it.
+  const unlock = () => audio.unlock();
+  window.addEventListener('keydown', unlock);
+  window.addEventListener('pointerdown', unlock);
+
   function handleActions() {
     const actions = input.takeActions();
     if (actions & ACTION_CONFIRM) {
       if (world.phase === 'title') {
+        audio.unlock();
         startGame(world);
         accumulator = 0;
         announce('Playing. On foot in Sunset Palms.');
       } else if (world.phase === 'over') {
         startGame(world);
         accumulator = 0;
-        announce('Playing again.');
+        announce('Playing again. Respawned at the plaza.');
       } else if (world.phase === 'pause') {
         world.phase = 'play';
         announce('Playing.');
       }
     }
+    if (actions & ACTION_INTERACT) {
+      if (world.phase === 'play') {
+        const wasCar = world.player.mode === 'car';
+        const changed = toggleVehicle(world);
+        if (!changed) announce(wasCar ? 'Slow down before stepping out.' : 'No car within reach.');
+        else announce(wasCar ? 'On foot.' : 'Driving.');
+      }
+    }
+    if (actions & ACTION_MUTE) {
+      const muted = audio.toggleMute();
+      announce(muted ? 'Sound muted.' : 'Sound on.');
+    }
     if (actions & ACTION_PAUSE) {
       if (world.phase === 'play') {
         world.phase = 'pause';
+        audio.engine(0, 0, false);
+        audio.siren(false, 0);
         announce('Paused.');
       } else if (world.phase === 'pause') {
         world.phase = 'play';
