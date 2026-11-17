@@ -1,9 +1,7 @@
-// AI traffic and pedestrians. Traffic is lane-following: every car owns the next intersection it
-// is heading for, steers toward that lane's crossing point, brakes for whatever is in front of
-// it, and picks a new direction (mostly straight) when it arrives. Pedestrians walk the sidewalk
-// ring of a block, sometimes cross at a corner, and run when a car gets close or a shot is fired.
-// Both populations are spawned around the player and recycled when they fall behind, so the city
-// always has someone in it without simulating the whole map.
+// Ambient life: lane-following AI traffic that steers to the next intersection and brakes for
+// what is ahead, plus sidewalk pedestrians who cross, flee gunfire and get run over. Exports
+// spawnTraffic, updateTraffic, placeTrafficCar, spawnPeds, placePed, updatePeds, runOverPeds,
+// clearAmbient and spawnAmbient; both populations recycle around the player.
 
 import { COLOURS, TUNING } from './config.js';
 import { DIRS, PITCH, angleDelta, lanePoint, nextNode, onGrid, randomRoadPoint } from './roads.js';

@@ -1,6 +1,6 @@
-// A smooth follow camera in world pixels. It trails the player, looks a little way along the
-// direction of travel, and clamps to the city so the ocean and the outer ring roads never show
-// an empty void. `zoom` is world pixels per logical pixel.
+// Smooth follow camera in world pixels: it trails the player, leads slightly along travel and
+// clamps to the city bounds. Exports createCamera, setCameraView, clampCamera, updateCamera,
+// snapCamera, zoomCamera and screenToWorld; `zoom` is world pixels per logical pixel.
 
 import { TUNING, VIEW } from './config.js';
 

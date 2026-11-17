@@ -1,7 +1,7 @@
-// Lane geometry for the road grid: one place that knows where the middle of each lane runs, so
-// traffic, police and the shot staging all put cars in the same believable places. Right-hand
-// traffic: eastbound and southbound lanes sit on the far side of the road, westbound and
-// northbound on the near side. No drawing and no state, just arithmetic on the city grid.
+// Lane arithmetic for the road grid, shared by traffic, police and the screenshot staging so
+// every car sits in the same believable lane. Exports the grid constants PITCH, ROAD, HALF,
+// COLS, ROWS and DIRS plus lanePoint, nextNode, onGrid, nearestNode, angleDelta,
+// randomRoadPoint and nearestLanePoint. No state, no drawing.
 
 import { CITY } from './config.js';
 

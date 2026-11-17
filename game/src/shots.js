@@ -1,8 +1,7 @@
-// Deterministic screenshot scenes behind ?shot=cover|foot|drive|mission. Each one resets the
-// world, drops the player at a fixed landmark, fills the wallet and the clock with attractive
-// values, populates the street from the seeded random function, then places the exact cars,
-// people, police, story marker, collectibles and tracers the frame needs. Nothing here runs a
-// simulation step, so the same seed always renders the same frame.
+// Deterministic scenes behind ?shot=cover|foot|drive|mission: reset the world, place the player
+// at a landmark, set money/clock/health/wanted, populate the street from the seed and add the
+// exact cars, people, police, markers and tracers a frame needs. Exports stageShot(name, world);
+// it never advances the simulation.
 
 import { snapCamera } from './camera.js';
 import { populateAround, reset } from './world.js';

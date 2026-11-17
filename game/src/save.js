@@ -1,7 +1,7 @@
-// Progress that outlives the tab: money, the mission chain position, completed missions, the
-// hidden packages found, best race times and lifetime stats, kept in localStorage under one key.
-// Nothing here touches the DOM beyond localStorage and nothing throws when storage is refused
-// (a private window, a file:// page): the game simply plays without a save.
+// LocalStorage persistence for progress: money, mission position, completed jobs, found
+// packages, best race times and lifetime stats under one versioned key. Exports readSave,
+// hasSave, clearSave, snapshot, writeSave, autosave, applySave and saveSummary; refused storage
+// is handled silently, so the game just plays without a save.
 
 const KEY = 'sunset-palms.save.v1';
 const VERSION = 1;

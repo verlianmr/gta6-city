@@ -1,7 +1,6 @@
-// Every screen that is not the game: the title, the pause menu, the controls sheet, the full city
-// map and the results screen after a death. Keyboard and mouse both work: arrow keys move the
-// selection, Enter or Space confirms, and the pointer highlights and clicks the same rows. The
-// layout is computed once per frame and kept, so the click test always matches what was drawn.
+// Every screen outside play: title, pause, controls sheet, full city map and the death results,
+// driven by both arrow keys/Enter and the mouse. Exports menuItems, moveMenu, setMenuHover,
+// menuChoice, drawMenu, menuRects and MENU_MAP; layout is cached so clicks match the drawing.
 
 import { CITY, COLOURS, FONT } from './config.js';
 import { activityMarkers, activitySummary } from './activities.js';

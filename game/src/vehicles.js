@@ -1,7 +1,7 @@
-// Cars as entities: parked city cars adopted into the simulation, AI traffic and police cruisers,
-// and the one the player drives. Arcade top-down handling: a forward velocity along the body, a
-// lateral velocity that grip eats away (less when the handbrake is down, which is the slide),
-// steering that scales with speed, and axis-separated collision against building footprints.
+// Car entities and arcade top-down handling: parked cars adopted into play, AI traffic, police
+// cruisers and the player ride, with grip/slide, speed-scaled steering and axis-separated
+// building collisions. Exports CAR_TYPES, createVehicle, integrateCar, updatePlayerCar,
+// enterCar, exitCar, toggleVehicle, damageCar, carHitsPoint and the AI/paint helpers.
 // No drawing here; render.js reads the same fields.
 
 import { COLOURS, TUNING } from './config.js';

@@ -1,8 +1,6 @@
-// The overlay: mission title and objective with a live distance, wallet, clock, health, wanted
-// stars, a minimap with every blip the city has (mission, police, packages, side jobs, the race
-// checkpoint), a waypoint arrow that points off screen, and the toast column. Everything is drawn
-// in the fixed 1280x720 frame with generous type, so the frame still reads at thumbnail size. The
-// full-screen menus are menu.js's job; this file only hands off to it.
+// The in-game overlay drawn into the fixed frame: mission title and objective with distance,
+// wallet, clock, health, wanted stars, minimap and blips, the off-screen waypoint arrow and the
+// toast column. Exports drawHud(ctx, W, H, world); full-screen screens belong to menu.js.
 
 import { CITY, COLOURS, FONT } from './config.js';
 import { activityMarkers } from './activities.js';

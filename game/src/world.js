@@ -1,8 +1,7 @@
-// The world's state and its rules, with no drawing in it: the city, the player (on foot or in a
-// car), traffic, pedestrians, the wanted level, bullets and the camera. update(world, dt, input)
-// advances one fixed step; render.js, hud.js and menu.js read the same object. Populations are
-// spawned from the world's seeded random function, so a reset rebuilds the same street. The story
-// chain (missions.js) and the side jobs (activities.js) are stepped from here, in this order.
+// World state and rules with no drawing: city, player on foot or in a car, traffic, pedestrians,
+// wanted level, bullets and camera. update(world, dt, input) runs one fixed step and steps
+// missions and activities in order. Exports createWorld, reset, startGame, respawn, update,
+// populateAround, viewBounds and setMission; render.js, hud.js and menu.js read the same object.
 
 import { TUNING, VIEW } from './config.js';
 import { createCamera, snapCamera, updateCamera } from './camera.js';

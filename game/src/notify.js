@@ -1,6 +1,6 @@
-// The toast queue: one short line plus an optional second line, stacking down from the top of the
-// HUD and fading out on its own. Missions, activities, pickups and the save system all push here,
-// and hud.js is the only reader, so a message never needs to know how it will be drawn.
+// The HUD toast queue: at most four stacked messages that fade on their own, with a duplicate
+// line refreshed rather than repeated. Exports notify, updateNotifications, clearNotifications,
+// shakeScreen and updateShake; hud.js is the only reader.
 
 const MAX_TOASTS = 4;
 

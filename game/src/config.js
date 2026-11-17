@@ -1,6 +1,6 @@
-// Sunset Palms — every tuning number and colour lives here, so the city, the player and the
-// HUD all read from one sun-soaked palette. The game is drawn into a fixed 1280x720 logical
-// frame that the browser scales to the window; no rule below depends on the screen size.
+// Single source of tuning truth: the fixed 1280x720 VIEW frame, STEP, the COLOURS sunset
+// palette, TUNING (player, cars, police, combat, peds, traffic), CITY dimensions, FONT and the
+// default SHOT_MODE/SHOT_SEED. Exports those constants only; no logic lives here.
 
 /** The logical frame every module draws into. */
 export const VIEW = { width: 1280, height: 720 };

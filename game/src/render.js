@@ -1,7 +1,6 @@
-// Drawing only: world state in, pixels out. The camera transform is applied here, every visible
-// thing is culled against the view rectangle, and a warm sunset grade is laid over the frame
-// before the HUD draws on top. Gradients and palette lookups are cached, so a frame allocates
-// almost nothing in its hot loops.
+// The renderer: camera transform, view culling, the procedural city, cars, people, effects, the
+// sunset grade and everything else that turns world state into pixels. Exports render(ctx, W, H,
+// world) and nothing else; caches keep per-frame allocation out of the hot loops.
 
 import { COLOURS, VIEW } from './config.js';
 import { activityMarkers, activeCheckpoint } from './activities.js';

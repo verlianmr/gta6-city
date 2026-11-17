@@ -1,8 +1,7 @@
-// The wanted level and the people who care about it. Zero to five stars; crimes raise it, time
-// out of sight lowers it. More stars mean more cruisers, spawned on lanes off screen, driving at
-// the player and ramming; when a cruiser gets close and slows down, officers get out and shoot.
-// The state lives on world.police, the cruisers are ordinary vehicles, and officers are small
-// on-foot entities in world.officers.
+// The 0-5 star wanted level and the response: crimes raise it, hiding lowers it, and each star
+// buys more cruisers that spawn off screen, ram the player and drop officers who shoot. Exports
+// createPoliceState, raiseWanted, updatePolice, placePoliceUnit, placeOfficer, policeSparks and
+// officerBlood; state lives on world.police, world.officers and ordinary vehicle entries.
 
 import { COLOURS, TUNING } from './config.js';
 import { DIRS, angleDelta, randomRoadPoint } from './roads.js';

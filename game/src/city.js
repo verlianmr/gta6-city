@@ -1,7 +1,6 @@
-// Sunset Palms is generated, not authored: a deterministic grid of blocks between asphalt
-// roads, a downtown plaza, two parks, a beach and the ocean. Everything here is data plus a
-// few collision queries — no drawing. createCity(seed) always returns the same city for a seed,
-// so the screenshot scenes and the minimap stay stable.
+// Deterministic procedural city for Sunset Palms: road grid, blocks, downtown plaza, parks,
+// beach and ocean, all data with no drawing. createCity(seed) rebuilds the same town every
+// time; isRoad, isWalkable, blockAABBs and rebuildSolidHash answer the collision queries.
 
 import { CITY, COLOURS } from './config.js';
 import { chance, int, makeRandom, pick, range } from './random.js';

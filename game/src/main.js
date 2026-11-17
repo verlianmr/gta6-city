@@ -1,8 +1,7 @@
-// Boot and the one loop. ?shot=cover|foot|drive|mission stages a deterministic frame and paints
-// it twice for the screenshot; otherwise the requestAnimationFrame loop reads input, advances the
-// world in fixed 1/60 s steps, renders the city and lays the overlay on top. This file owns the
-// flow between screens — title, play, pause, controls, map, over — and the save file behind the
-// title's Continue row; the world owns everything inside a step and menu.js owns the drawing.
+// Boot and the only loop: reads ?shot= for a staged screenshot frame, otherwise runs the
+// requestAnimationFrame loop in fixed 1/60 s steps and owns the title/play/pause/map/over flow
+// plus the save file behind Continue. Imports the world, HUD, menu, renderer and audio;
+// exports nothing, it is the entry module that index.html loads.
 
 import { SHOT_MODE, SHOT_SEED, STEP, VIEW } from './config.js';
 import { createInput, ACTION_CONFIRM, ACTION_INTERACT, ACTION_MAP, ACTION_MENU_DOWN, ACTION_MENU_UP, ACTION_MUTE, ACTION_PAUSE } from './input.js';

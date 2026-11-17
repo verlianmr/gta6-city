@@ -1,5 +1,6 @@
-// A small seeded random number generator (mulberry32): the same seed always produces the same
-// city, the same parked cars and the same screenshot frame.
+// Seeded randomness (mulberry32) so a seed always rebuilds the same city, traffic and screenshot
+// frame. Exports makeRandom(seed) plus the range, int, pick and chance helpers that take the
+// generator as their first argument.
 
 export function makeRandom(seed) {
   let a = (seed | 0) || 0x9e3779b9;

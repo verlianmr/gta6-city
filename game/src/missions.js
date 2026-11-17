@@ -1,8 +1,7 @@
-// The story: eight jobs in a row, each a short list of objective steps (go to a marker, steal a
-// named car, survive an ambush, wreck a courier, deliver goods against a clock, shake a wanted
-// level) with a payout, an unlock and a line of story on the way out. This module owns the chain
-// data, the runtime step machine, the start markers and the checkpoint retry; it writes the
-// small `world.mission` record the renderer and the HUD read, and it never draws anything.
+// The eight-job story chain: the MISSION_CHAIN data, the runtime step machine (goto, steal,
+// deliver, survive, wreck, escape), start markers, payouts and checkpoint retry. Exports
+// MISSION_CHAIN, createMissionState, createMissionRecord, setMission, retryMission,
+// updateMissions, stageMission and MISSION_COLOUR, and draws nothing.
 
 import { COLOURS, TUNING } from './config.js';
 import { createVehicle, exitCar, removeVehicle } from './vehicles.js';

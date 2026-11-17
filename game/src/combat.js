@@ -1,7 +1,7 @@
-// Bullets, blood, sparks and the player's pistol. Everything here is data on the world: bullets
-// move in short substeps and test walls, pedestrians, officers, cars and the player; effects are
-// short-lived particles the renderer paints; decals stay on the asphalt for a while. The pistol
-// fires toward the mouse and only exists on foot, so Space is the handbrake in a car.
+// Gunplay and its debris: bullets stepped against walls, cars, pedestrians, officers and the
+// player, plus sparks, blood, decals and the pistol that fires toward the mouse on foot.
+// Exports createCombatState, spawnBullet, updateCombat, updatePlayerWeapon, damagePlayer,
+// commitCrime, addSpark, addBlood and muzzleFlash.
 
 import { COLOURS, TUNING, VIEW } from './config.js';
 import { carHitsPoint, damageCar, witnessNear } from './vehicles.js';

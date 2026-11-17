@@ -1,9 +1,6 @@
-// Every sound in Sunset Palms is synthesised: no audio files, no network. A single AudioContext
-// is created on the first user gesture (browsers refuse to start one before that), with a master
-// gain that M mutes. The engine is a continuous two-oscillator hum whose pitch follows the car's
-// speed; the siren is a two-tone square wave that only opens up when police are close; gunshots,
-// crashes and footsteps are short shaped noise bursts. Calling any method before unlock is safe
-// and silent, which is what the deterministic screenshot mode needs.
+// All of Sunset Palms' sound, synthesised at runtime on one WebAudio context: engine hum,
+// siren, gunshots, crashes and footsteps, plus the M-key mute. createAudio() is the only
+// export and stays silent until the first user gesture unlocks the context.
 
 export function createAudio() {
   let ctx = null;

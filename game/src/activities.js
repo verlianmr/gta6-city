@@ -1,8 +1,7 @@
-// Side content, all of it optional and all of it paid: two street races that time a lap of
-// checkpoints, a delivery job that runs a crate across town against a clock, a timed rampage
-// against the Coral Kings crew, and twelve hidden packages tucked around the city. Every reward
-// saves itself, every event reports through the toast queue, and none of it draws: the HUD and
-// the renderer read the state this module owns.
+// Optional paid side content: two street races, a timed delivery run, a rampage against the
+// Coral Kings and twelve hidden packages. This module owns their state, rewards and markers
+// and draws nothing. Exports createActivities, resetActivities, updateActivities,
+// activeCheckpoint, activityMarkers, activitySummary and activityShake.
 
 import { TUNING } from './config.js';
 import { lanePoint } from './roads.js';

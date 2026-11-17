@@ -1,7 +1,6 @@
-// Keyboard and pointer input, with no game rules in it. Held keys give a movement axis and a
-// run flag; one-shot presses are queued as ACTION_* flags and taken once per frame, so a press
-// between two frames is never lost and never counted twice. The mouse is stored normalised to
-// the canvas (0..1), which keeps aim independent of the window size.
+// Keyboard and pointer capture with no game rules: held keys become a movement axis plus a run
+// flag, one-shot presses queue as ACTION_* bit flags consumed once per frame, and the pointer is
+// stored normalised to the canvas. Exports the ACTION_* constants and createInput(canvas).
 
 export const ACTION_CONFIRM = 1;
 export const ACTION_PAUSE = 2;
