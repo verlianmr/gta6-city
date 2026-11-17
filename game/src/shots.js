@@ -1,79 +1,77 @@
-// The screenshot scenes behind ?shot=start|play|end. Each one plays the real rules forward from a
-// fresh world for a fixed number of steps, steered by a simple autopilot (look ahead each way the
-// paddle could move, keep clear of blocks, chase the lowest coin when that is safe), so the frame
-// is what a short game really looks like and the same seed always gives the same frame.
-import { FIELD, PLAYER, STEP } from './config.js';
-import { EVENT_OVER, KIND_BLOCK } from './world.js';
-import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
+// Deterministic screenshot scenes behind ?shot=cover|foot|drive|mission. Each one resets the
+// world, drops the player at a fixed landmark, fills the wallet and the clock with attractive
+// values and snaps the camera, so the same seed always renders the same frame. 'drive' and
+// 'mission' fall back to on-foot scenes until vehicles and missions exist.
 
-const START_SECONDS = 5;
-const PLAY_SECONDS = 26;
-const END_LIMIT_SECONDS = 600;
-/**
- * How far ahead, in seconds, the autopilot checks each way it could move: the play scene's pilot
- * looks well ahead and keeps all its lives; the end scene's looks only a moment ahead, so it is
- * caught out once the blocks speed up, as a hurried player is.
- */
-const HORIZON_PLAY = 0.7;
-const HORIZON_END = 0.25;
-const SAMPLE = 1 / 30;
-const DIRECTIONS = [0, -1, 1];
-/** Extra room, each side, it keeps between the paddle and a block. */
-const MARGIN = 10;
+import { snapCamera } from './camera.js';
+import { reset } from './world.js';
 
-/** Seconds until moving in `direction` (-1, 0, 1) runs the paddle into a block; Infinity when it never does. */
-function timeToHit(state, direction, horizon) {
-  const player = state.player;
-  for (let t = SAMPLE; t <= horizon; t += SAMPLE) {
-    const x = Math.min(FIELD.width - player.width, Math.max(0, player.x + direction * PLAYER.speed * t));
-    for (let index = 0; index < state.items.length; index += 1) {
-      const item = state.items[index];
-      if (!item.active || item.kind !== KIND_BLOCK) continue;
-      const y = item.y + item.speed * t;
-      if (y + item.height > player.y && y < player.y + player.height && item.x < x + player.width + MARGIN && item.x + item.width > x - MARGIN) return t;
-    }
-  }
-  return Infinity;
-}
-
-/** Of the safe ways to move, the one toward the lowest coin (or the centre); else the one that is hit last. */
-function autopilot(state, horizon) {
-  const player = state.player;
-  let coin = null;
-  for (let index = 0; index < state.items.length; index += 1) {
-    const item = state.items[index];
-    if (item.active && item.kind !== KIND_BLOCK && (coin === null || item.y > coin.y)) coin = item;
-  }
-  const target = coin === null ? FIELD.width / 2 : coin.x + coin.width / 2;
-  const centre = player.x + player.width / 2;
-  const wanted = target > centre + 8 ? 1 : target < centre - 8 ? -1 : 0;
-  let best = wanted;
-  let bestTime = timeToHit(state, wanted, horizon);
-  for (let index = 0; index < DIRECTIONS.length && bestTime !== Infinity; index += 1) {
-    const time = timeToHit(state, DIRECTIONS[index], horizon);
-    if (time > bestTime) {
-      bestTime = time;
-      best = DIRECTIONS[index];
-    }
-  }
-  return best;
-}
+const SCENES = {
+  cover: {
+    spot: 'downtown',
+    money: 2480,
+    hp: 100,
+    minute: 18 * 60 + 42,
+    zoom: 1.0,
+    angle: -Math.PI / 2,
+    walkPhase: 1.2,
+  },
+  foot: {
+    spot: 'street',
+    money: 6120,
+    hp: 86,
+    minute: 19 * 60 + 5,
+    zoom: 1.04,
+    angle: 0.18,
+    walkPhase: 2.5,
+  },
+  drive: {
+    spot: 'street',
+    money: 18950,
+    hp: 100,
+    minute: 19 * 60 + 22,
+    zoom: 1.0,
+    angle: -1.35,
+    walkPhase: 0.4,
+  },
+  mission: {
+    spot: 'park',
+    money: 7450,
+    hp: 72,
+    minute: 20 * 60 + 8,
+    zoom: 1.0,
+    angle: 0.45,
+    walkPhase: 3.1,
+  },
+};
 
 /**
- * Set `world` to the named scene (start, play or end; any other name is start) and return the
- * screen to draw over it and the best score to show.
+ * Reset `world` and set the named scene (any unknown name becomes 'cover'). Returns the scene
+ * key that was used. The frame is complete on return: camera, player, wallet and clock.
  */
 export function stageShot(name, world) {
-  world.reset();
-  if (name !== 'play' && name !== 'end') {
-    for (let index = 0; index < START_SECONDS / STEP; index += 1) world.step(STEP, 0, true);
-    return { screen: SCREEN_TITLE, best: 0 };
-  }
-  const limit = name === 'end' ? END_LIMIT_SECONDS : PLAY_SECONDS;
-  const horizon = name === 'end' ? HORIZON_END : HORIZON_PLAY;
-  for (let index = 0; index < limit / STEP; index += 1) {
-    if (world.step(STEP, autopilot(world.state, horizon), false) & EVENT_OVER) break;
-  }
-  const over = world.state.lives === 0;
-  return { screen: over ? SCREEN_OVER : SCREEN_PLAY, best: world.state.score };
+  const key = Object.prototype.hasOwnProperty.call(SCENES, name) ? name : 'cover';
+  const scene = SCENES[key];
+  reset(world);
+
+  const spot = world.city.spots[scene.spot] ?? world.city.spots.downtown;
+  const player = world.player;
+  player.x = spot.x;
+  player.y = spot.y;
+  player.vx = 0;
+  player.vy = 0;
+  player.angle = scene.angle;
+  player.hp = scene.hp;
+  player.money = scene.money;
+  player.walkPhase = scene.walkPhase;
+  player.speed = 0;
+  player.onFoot = true;
+
+  world.clock = scene.minute;
+  world.camera.zoom = scene.zoom;
+  world.phase = 'play';
+  world.message = '';
+  world.blips.length = 0;
+  snapCamera(world.camera, player);
+  return key;
 }
