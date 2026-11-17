@@ -9,6 +9,9 @@ export const ACTION_INTERACT = 4;
 export const ACTION_BRAKE = 8;
 export const ACTION_MUTE = 16;
 export const ACTION_FIRE = 32;
+export const ACTION_MAP = 64;
+export const ACTION_MENU_UP = 128;
+export const ACTION_MENU_DOWN = 256;
 
 const LEFT = new Set(['ArrowLeft', 'KeyA']);
 const RIGHT = new Set(['ArrowRight', 'KeyD']);
@@ -20,6 +23,7 @@ const PAUSE = new Set(['KeyP', 'Escape']);
 const INTERACT = new Set(['KeyE']);
 const BRAKE = new Set(['Space']);
 const MUTE = new Set(['KeyM']);
+const MAP = new Set(['Tab']);
 
 const RELEVANT = new Set([
   ...LEFT,
@@ -32,6 +36,7 @@ const RELEVANT = new Set([
   ...INTERACT,
   ...BRAKE,
   ...MUTE,
+  ...MAP,
 ]);
 
 export function createInput(canvas) {
@@ -63,6 +68,9 @@ export function createInput(canvas) {
     if (INTERACT.has(event.code)) actions |= ACTION_INTERACT;
     if (BRAKE.has(event.code)) actions |= ACTION_BRAKE;
     if (MUTE.has(event.code)) actions |= ACTION_MUTE;
+    if (MAP.has(event.code)) actions |= ACTION_MAP;
+    if (UP.has(event.code)) actions |= ACTION_MENU_UP;
+    if (DOWN.has(event.code)) actions |= ACTION_MENU_DOWN;
   });
 
   window.addEventListener('keyup', (event) => {

@@ -575,24 +575,40 @@ export function createCity(seed) {
   const plaza = city.blocks.find((b) => b.kind === 'plaza') ?? city.blocks[Math.floor(city.blocks.length / 2)];
   const park = city.blocks.find((b) => b.kind === 'park') ?? city.blocks[0];
   const street = city.blocks.find((b) => b.col === CITY.plazaBlock[0] + 1 && b.row === CITY.plazaBlock[1]) ?? plaza;
+  const lotBlock = city.blocks.find((b) => b.kind === 'lot') ?? street;
+  const northBlock = city.blocks.find((b) => b.col === CITY.plazaBlock[0] && b.row === 0) ?? plaza;
 
   const downtownPreferred = { x: plaza.x + plaza.w / 2, y: plaza.y + plaza.h / 2 + 112 };
   const streetPreferred = { x: street.x + 13, y: street.y + street.h * 0.48 };
   const parkPreferred = { x: park.x + park.w * 0.38, y: park.y + park.h * 0.46 };
   const beachPreferred = { x: gridWidth * 0.55, y: gridHeight + CITY.beachDepth * 0.56 };
+  const lotPreferred = { x: lotBlock.x + lotBlock.w * 0.5, y: lotBlock.y + lotBlock.h * 0.22 };
+  const pierPreferred = { x: gridWidth * 0.82, y: gridHeight + 74 };
+  const garagePreferred = { x: street.x + street.w * 0.5, y: street.y + street.h - 22 };
+  const northPreferred = { x: northBlock.x + northBlock.w * 0.5, y: northBlock.y + 18 };
 
   const downtown = findOpenSpot(city, downtownPreferred.x, downtownPreferred.y, 12);
   const streetSpot = findOpenSpot(city, streetPreferred.x, streetPreferred.y, 12);
   const parkSpot = findOpenSpot(city, parkPreferred.x, parkPreferred.y, 12);
   const beachSpot = findOpenSpot(city, beachPreferred.x, beachPreferred.y, 12);
+  const lotSpot = findOpenSpot(city, lotPreferred.x, lotPreferred.y, 14);
+  const pierSpot = findOpenSpot(city, pierPreferred.x, pierPreferred.y, 12);
+  const garageSpot = findOpenSpot(city, garagePreferred.x, garagePreferred.y, 12);
+  const northSpot = findOpenSpot(city, northPreferred.x, northPreferred.y, 12);
 
   city.spots = {
     downtown: { x: downtown.x, y: downtown.y, angle: -Math.PI / 2, zoom: 1.0 },
     street: { x: streetSpot.x, y: streetSpot.y, angle: 0.12, zoom: 1.04 },
     park: { x: parkSpot.x, y: parkSpot.y, angle: 0.3, zoom: 1.0 },
     beach: { x: beachSpot.x, y: beachSpot.y, angle: -1.2, zoom: 1.0 },
+    lot: { x: lotSpot.x, y: lotSpot.y, angle: 0, zoom: 1.0 },
+    pier: { x: pierSpot.x, y: pierSpot.y, angle: -1.4, zoom: 1.0 },
+    garage: { x: garageSpot.x, y: garageSpot.y, angle: Math.PI / 2, zoom: 1.0 },
+    north: { x: northSpot.x, y: northSpot.y, angle: Math.PI, zoom: 1.0 },
   };
   city.spawn = { x: downtown.x, y: downtown.y };
+  city.landmarks = { plaza, park, street, lot: lotBlock };
+
 
   return city;
 }

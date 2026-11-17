@@ -1,7 +1,8 @@
 // The world's state and its rules, with no drawing in it: the city, the player (on foot or in a
 // car), traffic, pedestrians, the wanted level, bullets and the camera. update(world, dt, input)
-// advances one fixed step; render.js and hud.js read the same object. Populations are spawned
-// from the world's seeded random function, so a reset rebuilds the same street.
+// advances one fixed step; render.js, hud.js and menu.js read the same object. Populations are
+// spawned from the world's seeded random function, so a reset rebuilds the same street. The story
+// chain (missions.js) and the side jobs (activities.js) are stepped from here, in this order.
 
 import { TUNING, VIEW } from './config.js';
 import { createCamera, snapCamera, updateCamera } from './camera.js';
@@ -12,6 +13,7 @@ import {
   blocksFoot,
   exitCar,
   integrateVehicles,
+  removeVehicle,
   resetVehicles,
   resolveVehicleCollisions,
   runOverPlayer,
@@ -20,6 +22,10 @@ import {
 import { clearAmbient, runOverPeds, spawnAmbient, spawnPeds, spawnTraffic, updatePeds, updateTraffic } from './traffic.js';
 import { createPoliceState, updatePolice } from './police.js';
 import { createCombatState, updateCombat, updatePlayerWeapon } from './combat.js';
+import { createMissionRecord, createMissionState, updateMissions } from './missions.js';
+import { createActivities, resetActivities, updateActivities } from './activities.js';
+import { clearNotifications, updateNotifications, updateShake } from './notify.js';
+import { applySave } from './save.js';
 
 const cameraTarget = { x: 0, y: 0 };
 
@@ -51,33 +57,6 @@ function makePlayer(city) {
   };
 }
 
-const MISSION_SPOTS = [
-  { spot: 'downtown', title: 'THE HANDOFF', objective: 'Reach the plaza and pick up the package.' },
-  { spot: 'street', title: 'STREET TAX', objective: 'Collect the debt on the boulevard.' },
-  { spot: 'park', title: 'PALM PARK DROP', objective: 'Leave the briefcase under the palms.' },
-  { spot: 'beach', title: 'LOW TIDE', objective: 'Meet the boat before the sun goes down.' },
-];
-
-/** Point the yellow marker at a landmark and write the objective line the HUD shows. */
-export function setMission(world, title, objective, x, y, reward = 2500) {
-  world.mission = { title, objective, target: { x, y }, reward, active: true, distance: 0, index: 0 };
-  return world.mission;
-}
-
-function createMission(world, index = 0) {
-  let chosen = index % MISSION_SPOTS.length;
-  for (let attempt = 0; attempt < MISSION_SPOTS.length; attempt += 1) {
-    const entry = MISSION_SPOTS[chosen];
-    const spot = world.city.spots[entry.spot] ?? world.city.spots.downtown;
-    if (Math.hypot(spot.x - world.player.x, spot.y - world.player.y) > 260) break;
-    chosen = (chosen + 1) % MISSION_SPOTS.length;
-  }
-  const entry = MISSION_SPOTS[chosen];
-  const spot = world.city.spots[entry.spot] ?? world.city.spots.downtown;
-  const mission = setMission(world, entry.title, entry.objective, spot.x, spot.y, 2500 + chosen * 500);
-  mission.index = chosen;
-}
-
 /** Clear every moving thing and rebuild the street from the seed: parked cars, traffic, people. */
 function resetSystems(world) {
   world.random = makeRandom((world.seed ^ 0x51ed270b) >>> 0);
@@ -100,7 +79,7 @@ function resetSystems(world) {
   world.pedTimer = 0;
   world.message = '';
   world.messageTimer = 0;
-  world.stats = { kills: 0, crimes: 0, carsStolen: 0 };
+  world.stats = { kills: 0, crimes: 0, carsStolen: 0, missions: 0, packages: 0 };
   resetVehicles(world);
   spawnTraffic(world, TUNING.traffic.cars);
   spawnPeds(world, TUNING.peds.count);
@@ -133,18 +112,24 @@ export function createWorld(seed) {
     decals: [],
     police: createPoliceState(),
     playerCar: null,
-    mission: null,
+    mission: createMissionRecord(),
+    missionStart: null,
+    missions: createMissionState(),
+    activities: null,
+    notifications: [],
+    shake: { amount: 0, time: 0 },
+    menu: { index: 0, hover: -1, save: null, time: 0 },
     audio: null,
-    stats: { kills: 0, crimes: 0, carsStolen: 0 },
+    stats: { kills: 0, crimes: 0, carsStolen: 0, missions: 0, packages: 0 },
     trafficTimer: 0,
     pedTimer: 0,
     fireTimer: 0,
     gunPulse: null,
     hud: { flash: 0 },
   };
+  world.activities = createActivities(world);
   adoptParkedCars(world);
   resetSystems(world);
-  createMission(world, 0);
   return world;
 }
 
@@ -170,19 +155,58 @@ export function reset(world) {
   world.message = '';
   world.messageTimer = 0;
   world.blips.length = 0;
-  world.camera.zoom = 1;
+  world.camera.zoom = 1.1;
+  world.camera.zoomHold = 0;
+  world.mission = createMissionRecord();
+  world.missionStart = null;
+  world.missions = createMissionState();
+  world.shake = { amount: 0, time: 0 };
+  clearNotifications(world);
   resetSystems(world);
-  createMission(world, 0);
+  resetActivities(world);
+  world.menu.index = 0;
+  world.menu.hover = -1;
   snapCamera(world.camera, player);
 }
 
-/** Leave the title screen: a clean run from the plaza spawn. */
-export function startGame(world) {
+/**
+ * Leave the title screen. `save` is the record read from localStorage on Continue: it is applied
+ * after the reset, so the money, the chain position and the packages come back with it.
+ */
+export function startGame(world, save = null) {
   reset(world);
+  if (save !== null) applySave(world, save);
   world.phase = 'play';
-  world.message = 'Sunset Palms. E to take a car.';
+  world.menu.index = 0;
+  world.menu.hover = -1;
+  world.message = save === null ? 'Sunset Palms. E to take a car.' : 'Welcome back to Sunset Palms.';
   world.messageTimer = 3;
+  return world;
 }
+
+/** Respawn after a death with no job on the clock. */
+export function respawn(world) {
+  const player = world.player;
+  if (world.playerCar !== null) exitCar(world, true);
+  player.mode = 'foot';
+  player.onFoot = true;
+  player.car = null;
+  player.vx = 0;
+  player.vy = 0;
+  player.hp = player.maxHp;
+  player.lastHurt = -99;
+  const spot = world.city.spawn;
+  player.x = spot.x;
+  player.y = spot.y;
+  world.police.wanted = 0;
+  for (const unit of world.police.units.slice()) removeVehicle(world, unit);
+  world.police.units.length = 0;
+  world.phase = 'play';
+  world.message = 'Back on the plaza. The city forgets nothing.';
+  world.messageTimer = 3;
+  return world;
+}
+
 
 function movePlayer(world, dt, input) {
   const player = world.player;
@@ -235,20 +259,6 @@ function advanceClock(world, dt) {
   if (world.clock >= 24 * 60) world.clock -= 24 * 60;
 }
 
-function updateMission(world) {
-  const mission = world.mission;
-  if (mission === null || !mission.active) return;
-  const player = world.player;
-  mission.distance = Math.hypot(player.x - mission.target.x, player.y - mission.target.y);
-  if (mission.distance < 105) {
-    player.money += mission.reward;
-    world.message = `MISSION COMPLETE  +$${mission.reward.toLocaleString('en-US')}`;
-    world.messageTimer = 3.4;
-    world.audio?.mission();
-    createMission(world, (mission.index ?? 0) + 1);
-  }
-}
-
 function updateAudio(world, dt) {
   const audio = world.audio;
   if (audio === null) return;
@@ -259,6 +269,19 @@ function updateAudio(world, dt) {
     audio.engine(0, 0, false);
   }
   audio.siren(world.police.wanted > 0 && world.police.siren > 0.02, world.police.siren);
+}
+
+/** The camera widens as the car goes faster, unless the player has just chosen a zoom. */
+function updateCameraFeel(world, dt) {
+  const camera = world.camera;
+  const driving = world.player.mode === 'car' && world.playerCar !== null;
+  const speed = driving ? Math.abs(world.playerCar.speed) : 0;
+  if (camera.zoomHold !== undefined && camera.zoomHold > 0) {
+    camera.zoomHold -= dt;
+  } else {
+    const desired = driving ? 1.34 - Math.min(0.2, speed / 2600) : 1.34;
+    camera.zoom += (desired - camera.zoom) * (1 - Math.exp(-1.8 * dt));
+  }
 }
 
 function stepPlay(world, dt, input) {
@@ -284,7 +307,10 @@ function stepPlay(world, dt, input) {
   runOverPlayer(world);
   updatePeds(world, dt);
   updateCombat(world, dt);
-  updateMission(world);
+  updateMissions(world, dt);
+  updateActivities(world, dt);
+  updateNotifications(world, dt);
+  updateShake(world, dt);
   advanceClock(world, dt);
   updateAudio(world, dt);
 
@@ -295,6 +321,8 @@ function stepPlay(world, dt, input) {
     if (world.playerCar !== null) exitCar(world, true);
     player.hp = 0;
     world.phase = 'over';
+    world.menu.index = 0;
+    world.menu.hover = -1;
     world.message = '';
     world.audio?.engine(0, 0, false);
     world.audio?.siren(false, 0);
@@ -313,14 +341,16 @@ export function update(world, dt, input) {
     integrateVehicles(world, dt);
     updatePeds(world, dt);
     resolveVehicleCollisions(world);
+    updateNotifications(world, dt);
     if (world.messageTimer > 0) world.messageTimer -= dt;
   }
 
   const focus = world.player.mode === 'car' && world.player.car !== null ? world.player.car : world.player;
-  const lead = world.player.mode === 'car' ? 0.22 : TUNING.camera.lookAhead;
+  const lead = world.player.mode === 'car' ? 0.3 : TUNING.camera.lookAhead;
   cameraTarget.x = focus.x + focus.vx * lead;
   cameraTarget.y = focus.y + focus.vy * lead;
   updateCamera(world.camera, cameraTarget, dt);
+  updateCameraFeel(world, dt);
 }
 
 /** Empty the street and refill it around wherever the camera has been put, for the shot scenes. */
@@ -330,6 +360,8 @@ export function populateAround(world, cars = 16, peds = 26) {
   spawnAmbient(world, cars, peds);
   world.police = createPoliceState();
 }
+
+export { setMission } from './missions.js';
 
 /** The visible world rectangle, used by the renderer and the minimap. */
 export function viewBounds(camera) {

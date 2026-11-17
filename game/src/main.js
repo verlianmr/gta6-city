@@ -1,17 +1,21 @@
 // Boot and the one loop. ?shot=cover|foot|drive|mission stages a deterministic frame and paints
 // it twice for the screenshot; otherwise the requestAnimationFrame loop reads input, advances the
-// world in fixed 1/60 s steps, renders the city and lays the HUD on top. Title, play, pause and
-// over are handled here; the world owns only its own state.
+// world in fixed 1/60 s steps, renders the city and lays the overlay on top. This file owns the
+// flow between screens — title, play, pause, controls, map, over — and the save file behind the
+// title's Continue row; the world owns everything inside a step and menu.js owns the drawing.
 
 import { SHOT_MODE, SHOT_SEED, STEP, VIEW } from './config.js';
-import { createInput, ACTION_CONFIRM, ACTION_INTERACT, ACTION_MUTE, ACTION_PAUSE } from './input.js';
+import { createInput, ACTION_CONFIRM, ACTION_INTERACT, ACTION_MAP, ACTION_MENU_DOWN, ACTION_MENU_UP, ACTION_MUTE, ACTION_PAUSE } from './input.js';
 import { zoomCamera } from './camera.js';
-import { createWorld, startGame, update } from './world.js';
-import { render } from './render.js';
+import { createWorld, respawn, startGame, update } from './world.js';
 import { drawHud } from './hud.js';
 import { stageShot } from './shots.js';
 import { createAudio } from './audio.js';
 import { toggleVehicle } from './vehicles.js';
+import { retryMission } from './missions.js';
+import { clearSave, readSave, writeSave } from './save.js';
+import { menuChoice, moveMenu, setMenuHover } from './menu.js';
+import { render } from './render.js';
 
 const MAX_FRAME = 0.12;
 const MAX_STEPS = 6;
@@ -80,6 +84,7 @@ function runGame() {
   activeInput = input;
   const audio = createAudio();
   world.audio = audio;
+  world.menu.save = readSave();
   let accumulator = 0;
   let last = performance.now();
 
@@ -92,48 +97,170 @@ function runGame() {
   window.addEventListener('keydown', unlock);
   window.addEventListener('pointerdown', unlock);
 
+  function toTitle() {
+    writeSave(world);
+    world.menu.save = readSave();
+    world.phase = 'title';
+    world.menu.index = 0;
+    world.menu.hover = -1;
+    audio.engine(0, 0, false);
+    audio.siren(false, 0);
+    announce('Sunset Palms. Choose a row to begin.');
+  }
+
+  function start(save) {
+    startGame(world, save);
+    world.menu.save = readSave();
+    world.menu.index = 0;
+    world.menu.hover = -1;
+    accumulator = 0;
+    announce(save === null ? 'Playing. On foot in Sunset Palms.' : 'Continuing your saved run.');
+  }
+
+  /** One menu row was chosen, by Enter or by a click. */
+  function activate(id) {
+    if (id === null || id === undefined) return;
+    switch (id) {
+      case 'continue':
+        audio.unlock();
+        start(world.menu.save);
+        break;
+      case 'new':
+        audio.unlock();
+        clearSave();
+        start(null);
+        break;
+      case 'controls':
+        world.menu.back = world.phase;
+        world.phase = 'controls';
+        world.menu.index = 0;
+        world.menu.hover = -1;
+        announce('Controls.');
+        break;
+      case 'back':
+        world.phase = world.menu.back === 'pause' ? 'pause' : 'title';
+        world.menu.index = 0;
+        world.menu.hover = -1;
+        break;
+      case 'resume':
+        world.phase = 'play';
+        world.menu.index = 0;
+        world.menu.hover = -1;
+        announce('Playing.');
+        break;
+      case 'restart':
+        clearSave();
+        start(null);
+        break;
+      case 'mute': {
+        const muted = audio.toggleMute();
+        announce(muted ? 'Sound muted.' : 'Sound on.');
+        break;
+      }
+      case 'map':
+        world.phase = 'map';
+        world.menu.index = 0;
+        world.menu.hover = -1;
+        announce('City map.');
+        break;
+      case 'close':
+        world.phase = 'play';
+        world.menu.index = 0;
+        world.menu.hover = -1;
+        announce('Playing.');
+        break;
+      case 'quit':
+        toTitle();
+        break;
+      case 'retry':
+        if (world.missions.active !== null) {
+          retryMission(world);
+          world.phase = 'play';
+          announce('Back on the checkpoint.');
+        } else {
+          respawn(world);
+          announce('Respawned on the plaza.');
+        }
+        accumulator = 0;
+        break;
+      case 'title':
+        toTitle();
+        break;
+      default:
+        break;
+    }
+  }
+
+  function openPause() {
+    world.phase = 'pause';
+    world.menu.index = 0;
+    world.menu.hover = -1;
+    audio.engine(0, 0, false);
+    audio.siren(false, 0);
+    announce('Paused.');
+  }
+
   function handleActions() {
     const actions = input.takeActions();
-    if (actions & ACTION_CONFIRM) {
-      if (world.phase === 'title') {
-        audio.unlock();
-        startGame(world);
-        accumulator = 0;
-        announce('Playing. On foot in Sunset Palms.');
-      } else if (world.phase === 'over') {
-        startGame(world);
-        accumulator = 0;
-        announce('Playing again. Respawned at the plaza.');
-      } else if (world.phase === 'pause') {
-        world.phase = 'play';
-        announce('Playing.');
-      }
+    const phase = world.phase;
+
+    if (actions & ACTION_MUTE) {
+      const muted = audio.toggleMute();
+      announce(muted ? 'Sound muted.' : 'Sound on.');
     }
-    if (actions & ACTION_INTERACT) {
-      if (world.phase === 'play') {
+
+    if (phase === 'play') {
+      if (actions & ACTION_INTERACT) {
         const wasCar = world.player.mode === 'car';
         const changed = toggleVehicle(world);
         if (!changed) announce(wasCar ? 'Slow down before stepping out.' : 'No car within reach.');
         else announce(wasCar ? 'On foot.' : 'Driving.');
       }
+      if (actions & ACTION_PAUSE) openPause();
+      if (actions & ACTION_MAP) {
+        world.phase = 'map';
+        world.menu.index = 0;
+        world.menu.hover = -1;
+        announce('City map.');
+      }
+      const wheel = input.takeWheel();
+      if (wheel !== 0) {
+        zoomCamera(world.camera, wheel);
+        world.camera.zoomHold = 3;
+      }
+      return;
     }
-    if (actions & ACTION_MUTE) {
-      const muted = audio.toggleMute();
-      announce(muted ? 'Sound muted.' : 'Sound on.');
-    }
+
+    // Every other screen is a menu: arrows move, Enter or a click chooses.
+    if (input.mouse.inside) setMenuHover(world, input.mouse.nx, input.mouse.ny);
+    if (actions & ACTION_MENU_UP) moveMenu(world, -1);
+    if (actions & ACTION_MENU_DOWN) moveMenu(world, 1);
+    if (actions & ACTION_CONFIRM) activate(menuChoice(world));
+
     if (actions & ACTION_PAUSE) {
-      if (world.phase === 'play') {
-        world.phase = 'pause';
-        audio.engine(0, 0, false);
-        audio.siren(false, 0);
-        announce('Paused.');
-      } else if (world.phase === 'pause') {
+      if (phase === 'pause') {
         world.phase = 'play';
+        world.menu.index = 0;
         announce('Playing.');
+      } else if (phase === 'map') {
+        world.phase = 'play';
+        world.menu.index = 0;
+      } else if (phase === 'controls') {
+        world.phase = world.menu.back === 'pause' ? 'pause' : 'title';
+        world.menu.index = 0;
+      } else if (phase === 'over') {
+        toTitle();
       }
     }
-    const wheel = input.takeWheel();
-    if (wheel !== 0) zoomCamera(world.camera, wheel);
+    if (phase === 'map' && actions & ACTION_MAP) {
+      world.phase = 'play';
+      world.menu.index = 0;
+    }
+    if (phase === 'controls' && actions & ACTION_MAP) {
+      world.phase = world.menu.back === 'pause' ? 'pause' : 'title';
+      world.menu.index = 0;
+    }
+    input.takeWheel();
   }
 
   function frame(now) {
@@ -159,15 +286,12 @@ function runGame() {
 
   // Leaving the tab pauses a running game rather than letting the city move unseen.
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && world.phase === 'play') {
-      world.phase = 'pause';
-      announce('Paused.');
-    }
+    if (document.hidden && world.phase === 'play') openPause();
   });
 
   resize();
   window.addEventListener('resize', resize);
-  announce('Sunset Palms. Press Space or click to begin.');
+  announce('Sunset Palms. Choose a row to begin.');
   requestAnimationFrame(frame);
 }
 

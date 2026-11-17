@@ -129,7 +129,8 @@ function hitOfficer(world, officer, bullet) {
     addBlood(world, officer.x, officer.y, 13);
     if (bullet.owner === 'player') {
       world.stats.kills += 1;
-      commitCrime(world, 2);
+      // Crew killed in a back alley are nobody's police report; an officer is two stars.
+      if (officer.thug !== true) commitCrime(world, 2);
     }
   } else {
     addBlood(world, officer.x, officer.y, 4);

@@ -4,6 +4,7 @@
 // almost nothing in its hot loops.
 
 import { COLOURS, VIEW } from './config.js';
+import { activityMarkers, activeCheckpoint } from './activities.js';
 
 const view = { x0: 0, y0: 0, x1: 0, y1: 0 };
 const WAVE_STYLES = [];
@@ -1029,10 +1030,15 @@ function drawVehicle(ctx, car, time) {
     ctx.stroke();
   }
   if (!car.dead) {
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+    // Shading: a dark sill along the shadowed side and a warm rim on the sunward edge.
+    ctx.fillStyle = 'rgba(28, 18, 16, 0.18)';
+    ctx.fillRect(-l / 2 + 3, w / 2 - 5, l - 6, 5);
+    ctx.fillStyle = 'rgba(255, 246, 214, 0.20)';
     ctx.beginPath();
     ctx.roundRect(-l / 2 + 4, -w / 2 + 2, l - 8, 3, 2);
     ctx.fill();
+    ctx.fillStyle = 'rgba(255, 240, 200, 0.10)';
+    ctx.fillRect(l * 0.12, -w * 0.3, 3, w * 0.6);
   }
 
   // Cabin: roof panel with windscreen and rear glass, then the side windows.
@@ -1194,6 +1200,11 @@ function drawPed(ctx, ped) {
 }
 
 function drawOfficer(ctx, officer) {
+  const thug = officer.thug === true;
+  const shirt = thug ? '#c2543f' : '#2c3f5e';
+  const pants = thug ? '#332b28' : '#26344c';
+  const trim = thug ? '#f0a24e' : '#8fb6ff';
+  const hair = thug ? '#241c19' : '#1b2230';
   if (officer.down || officer.hp <= 0) {
     ctx.save();
     ctx.translate(officer.x, officer.y);
@@ -1202,7 +1213,7 @@ function drawOfficer(ctx, officer) {
     ctx.beginPath();
     ctx.ellipse(5, 4, 15, 7, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#24324a';
+    ctx.fillStyle = pants;
     ctx.beginPath();
     ctx.roundRect(-12, -5, 22, 10, 4);
     ctx.fill();
@@ -1221,19 +1232,19 @@ function drawOfficer(ctx, officer) {
   ctx.save();
   ctx.translate(officer.x, officer.y);
   ctx.rotate(officer.angle);
-  ctx.fillStyle = '#26344c';
+  ctx.fillStyle = pants;
   ctx.beginPath();
   ctx.roundRect(-10 + swing * 0.6, -6, 9, 4.8, 2);
   ctx.roundRect(-10 - swing * 0.6, 1.2, 9, 4.8, 2);
   ctx.fill();
-  ctx.fillStyle = '#2c3f5e';
+  ctx.fillStyle = shirt;
   ctx.beginPath();
   ctx.roundRect(-6, -7, 15, 14, 5);
   ctx.fill();
   ctx.strokeStyle = 'rgba(16, 22, 34, 0.5)';
   ctx.lineWidth = 1;
   ctx.stroke();
-  ctx.fillStyle = '#8fb6ff';
+  ctx.fillStyle = trim;
   ctx.fillRect(-2, -6, 3, 12);
   ctx.fillStyle = '#c98b63';
   ctx.beginPath();
@@ -1244,7 +1255,7 @@ function drawOfficer(ctx, officer) {
   ctx.beginPath();
   ctx.arc(4.4, 0, 4.4, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = '#1b2230';
+  ctx.fillStyle = hair;
   ctx.beginPath();
   ctx.arc(3.4, 0, 4.6, Math.PI * 0.55, Math.PI * 1.45);
   ctx.fill();
@@ -1254,7 +1265,7 @@ function drawOfficer(ctx, officer) {
 }
 
 function drawMissionMarker(ctx, mission, time) {
-  if (mission === null || !mission.active) return;
+  if (mission === null || mission === undefined || !mission.active || mission.target === null || mission.target === undefined) return;
   const pulse = 0.5 + 0.5 * Math.sin(time * 3.2);
   const x = mission.target.x;
   const y = mission.target.y;
@@ -1288,6 +1299,165 @@ function drawMissionMarker(ctx, mission, time) {
   ctx.lineWidth = 1.5;
   ctx.stroke();
   ctx.restore();
+}
+
+/** The giver waiting on the next job: a gold ring with their initial floating over it. */
+function drawMissionStart(ctx, marker, time) {
+  if (marker === null || marker === undefined) return;
+  const pulse = 0.5 + 0.5 * Math.sin(time * 2.6);
+  const x = marker.x;
+  const y = marker.y;
+  ctx.save();
+  const glow = ctx.createRadialGradient(x, y, 3, x, y, 58);
+  glow.addColorStop(0, 'rgba(255, 211, 77, 0.30)');
+  glow.addColorStop(1, 'rgba(255, 211, 77, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(x, y, 58, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = `rgba(255, 211, 77, ${0.5 + pulse * 0.4})`;
+  ctx.lineWidth = 2.6;
+  ctx.beginPath();
+  ctx.arc(x, y, 26 + pulse * 6, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255, 211, 77, 0.14)';
+  ctx.beginPath();
+  ctx.arc(x, y, 20, 0, Math.PI * 2);
+  ctx.fill();
+
+  // A small floating plate with the giver's initial.
+  const lift = 6 + pulse * 3;
+  ctx.translate(x, y - 22 - lift);
+  ctx.fillStyle = COLOURS.mission;
+  ctx.beginPath();
+  ctx.roundRect(-11, -11, 22, 22, 5);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(46, 30, 14, 0.8)';
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+  ctx.fillStyle = '#2c1d10';
+  ctx.font = '800 14px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const initial = marker.giver === undefined || marker.giver === '' ? '!' : marker.giver.slice(0, 1);
+  ctx.fillText(initial, 0, 1);
+  ctx.restore();
+}
+
+/** Hidden packages: a small glowing parcel with a ribbon, bobbing on the pavement. */
+function drawPackages(ctx, world, time) {
+  const packs = world.activities?.packages;
+  if (packs === undefined) return;
+  for (let i = 0; i < packs.length; i += 1) {
+    const pack = packs[i];
+    if (pack.taken) continue;
+    if (pack.x < view.x0 - 30 || pack.x > view.x1 + 30 || pack.y < view.y0 - 30 || pack.y > view.y1 + 30) continue;
+    const bob = Math.sin(time * 2.4 + pack.phase) * 2.2;
+    const glow = ctx.createRadialGradient(pack.x, pack.y, 1, pack.x, pack.y, 22);
+    glow.addColorStop(0, 'rgba(255, 224, 138, 0.34)');
+    glow.addColorStop(1, 'rgba(255, 224, 138, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(pack.x, pack.y, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.save();
+    ctx.translate(pack.x, pack.y + bob);
+    ctx.rotate(0.4);
+    ctx.fillStyle = 'rgba(48, 28, 22, 0.24)';
+    ctx.fillRect(-7, 6, 15, 5);
+    ctx.fillStyle = '#f2d38a';
+    ctx.beginPath();
+    ctx.roundRect(-7, -7, 14, 14, 3);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(92, 58, 20, 0.75)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.fillStyle = '#b8862f';
+    ctx.fillRect(-1.6, -7, 3.2, 14);
+    ctx.fillRect(-7, -1.6, 14, 3.2);
+    ctx.restore();
+  }
+}
+
+/** Race flags, the delivery crate and the rampage marker, all drawn on the ground. */
+function drawActivityWorld(ctx, world, time) {
+  const markers = activityMarkers(world);
+  for (let i = 0; i < markers.length; i += 1) {
+    const marker = markers[i];
+    if (marker.x < view.x0 - 40 || marker.x > view.x1 + 40 || marker.y < view.y0 - 40 || marker.y > view.y1 + 40) continue;
+    const pulse = 0.5 + 0.5 * Math.sin(time * 3 + i);
+    const colour = marker.kind === 'race' ? COLOURS.race : marker.kind === 'delivery' ? COLOURS.green : COLOURS.thug;
+    ctx.save();
+    ctx.translate(marker.x, marker.y);
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.arc(0, 0, 22 + pulse * 4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = colour;
+    ctx.beginPath();
+    ctx.arc(0, 0, 20, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = colour;
+    ctx.beginPath();
+    ctx.roundRect(-9, -9, 18, 18, 4);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(20, 16, 20, 0.7)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.fillStyle = '#1a1420';
+    ctx.font = '900 12px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(marker.kind === 'race' ? 'R' : marker.kind === 'delivery' ? 'D' : 'K', 0, 1);
+    ctx.restore();
+  }
+
+  // The live race checkpoint: a cyan ring the next gate sits in.
+  const cp = activeCheckpoint(world);
+  if (cp !== null) {
+    const pulse = 0.5 + 0.5 * Math.sin(time * 5);
+    ctx.save();
+    ctx.translate(cp.x, cp.y);
+    ctx.strokeStyle = `rgba(95, 208, 224, ${0.55 + pulse * 0.4})`;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(0, 0, 34 + pulse * 8, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(0, 0, 22, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(95, 208, 224, 0.16)';
+    ctx.beginPath();
+    ctx.arc(0, 0, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+/** A red diamond over the car a mission wants wrecked, so it is findable in traffic. */
+function drawTargetTag(ctx, car, time) {
+  if (car === null || car.dead) return;
+  const bob = Math.sin(time * 6) * 2.4;
+  ctx.save();
+  ctx.translate(car.x, car.y - 34 + bob);
+  ctx.rotate(Math.PI / 4);
+  ctx.fillStyle = COLOURS.fail;
+  ctx.fillRect(-6, -6, 12, 12);
+  ctx.strokeStyle = 'rgba(40, 12, 12, 0.85)';
+  ctx.lineWidth = 1.3;
+  ctx.strokeRect(-6, -6, 12, 12);
+  ctx.restore();
+  ctx.fillStyle = 'rgba(255, 106, 88, 0.16)';
+  ctx.beginPath();
+  ctx.arc(car.x, car.y, car.length * 0.8, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function drawDecals(ctx, world) {
@@ -1415,16 +1585,142 @@ function drawStreetEntities(ctx, world, time) {
 }
 
 
+/** How much sun is up: 1 at midday, 0 deep at night, easing through dawn and dusk. */
+function daylight(hour) {
+  if (hour >= 8 && hour <= 17) return 1;
+  if (hour < 5 || hour > 21.5) return 0;
+  if (hour < 8) return (hour - 5) / 3;
+  return 1 - (hour - 17) / 4.5;
+}
+
+/**
+ * One warm radial sprite, drawn many times: a lamp pool, a headlight bloom, a lit window. Building
+ * it once keeps the night pass to plain drawImage calls instead of a gradient per lamp per frame.
+ */
+let glowSprite = null;
+
+function getGlowSprite() {
+  if (glowSprite !== null) return glowSprite;
+  if (typeof document === 'undefined') return null;
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const c = canvas.getContext('2d');
+  const g = c.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  g.addColorStop(0, 'rgba(255, 222, 164, 0.95)');
+  g.addColorStop(0.34, 'rgba(255, 200, 122, 0.46)');
+  g.addColorStop(0.68, 'rgba(255, 176, 96, 0.13)');
+  g.addColorStop(1, 'rgba(255, 168, 88, 0)');
+  c.fillStyle = g;
+  c.fillRect(0, 0, size, size);
+  glowSprite = canvas;
+  return glowSprite;
+}
+
+/** Deterministic 0..1 from two integers, so a window lights the same way every frame. */
+function hash01(x, y) {
+  let h = (x * 374761393 + y * 668265263) | 0;
+  h = (h ^ (h >>> 13)) * 1274126177;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+}
+
+/**
+ * The after-dark pass: warm pools under the street lamps, lit windows along the building walls and
+ * a bloom in front of every headlight. Drawn additively over the tinted world, so the light stays
+ * bright while the streets around it go properly dark.
+ */
+function drawNightLights(ctx, W, H, world, night) {
+  const sprite = getGlowSprite();
+  if (sprite === null) return;
+  const city = world.city;
+  const camera = world.camera;
+  const view = { x0: camera.x - VIEW.width / (2 * camera.zoom), y0: camera.y - VIEW.height / (2 * camera.zoom), x1: camera.x + VIEW.width / (2 * camera.zoom), y1: camera.y + VIEW.height / (2 * camera.zoom) };
+
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.scale(camera.zoom, camera.zoom);
+  ctx.translate(-camera.x, -camera.y);
+  ctx.globalCompositeOperation = 'lighter';
+
+  // Street lamps: a wide soft pool with a hot core.
+  for (let i = 0; i < city.props.length; i += 1) {
+    const prop = city.props[i];
+    if (prop.type !== 'lamp') continue;
+    if (prop.x < view.x0 - 60 || prop.x > view.x1 + 60 || prop.y < view.y0 - 60 || prop.y > view.y1 + 60) continue;
+    const r = 62;
+    ctx.globalAlpha = 0.42 * night;
+    ctx.drawImage(sprite, prop.x - r, prop.y - r, r * 2, r * 2);
+    ctx.globalAlpha = 0.5 * night;
+    ctx.fillStyle = '#ffe4ae';
+    ctx.beginPath();
+    ctx.arc(prop.x, prop.y, 2.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Lit windows: a scattering of warm rectangles on the roof edge nearest the street, plus a bloom.
+  for (let i = 0; i < city.buildings.length; i += 1) {
+    const b = city.buildings[i];
+    if (b.x > view.x1 || b.x + b.w < view.x0 || b.y > view.y1 || b.y + b.h < view.y0) continue;
+    const step = 22;
+    for (let x = b.x + 14; x < b.x + b.w - 14; x += step) {
+      if (hash01(x, b.y) > 0.34) continue;
+      const warm = hash01(b.y, x) > 0.22;
+      ctx.globalAlpha = 0.5 * night;
+      ctx.fillStyle = warm ? '#ffcf8a' : '#bfe2ef';
+      ctx.fillRect(x, b.y + b.h - 9, 7, 3.4);
+      ctx.globalAlpha = 0.3 * night;
+      ctx.drawImage(sprite, x - 11, b.y + b.h - 20, 26, 26);
+    }
+    for (let y = b.y + 16; y < b.y + b.h - 14; y += step) {
+      if (hash01(b.x, y) > 0.28) continue;
+      ctx.globalAlpha = 0.46 * night;
+      ctx.fillStyle = '#ffd79a';
+      ctx.fillRect(b.x + b.w - 8, y, 3.4, 7);
+      ctx.globalAlpha = 0.26 * night;
+      ctx.drawImage(sprite, b.x + b.w - 20, y - 10, 24, 24);
+    }
+  }
+
+  // Headlights bloom on the tarmac, and the tail lamps leave a red smear behind them.
+  for (let i = 0; i < world.vehicles.length; i += 1) {
+    const car = world.vehicles[i];
+    if (car.dead || car.parked) continue;
+    if (car.x < view.x0 - 90 || car.x > view.x1 + 90 || car.y < view.y0 - 90 || car.y > view.y1 + 90) continue;
+    const fx = Math.cos(car.angle);
+    const fy = Math.sin(car.angle);
+    const nose = (car.length ?? 26) * 0.5;
+    ctx.globalAlpha = 0.3 * night;
+    ctx.drawImage(sprite, car.x + fx * (nose + 14) - 26, car.y + fy * (nose + 14) - 26, 52, 52);
+    ctx.globalAlpha = 0.16 * night;
+    ctx.fillStyle = '#ff5a48';
+    ctx.beginPath();
+    ctx.arc(car.x - fx * nose * 0.9, car.y - fy * nose * 0.9, 7, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.restore();
+}
+
 function drawAtmosphere(ctx, W, H, world) {
   const hour = world.clock / 60;
+  const day = Math.max(0, Math.min(1, daylight(hour)));
+  const night = 1 - day;
   const warmth = Math.max(0, 1 - Math.abs(hour - 18.4) / 3.4);
-  const bucket = Math.round(warmth * 12);
+  const bucket = Math.round(day * 10) * 16 + Math.round(warmth * 12);
+
   if (cache.tint === null || cache.tintBucket !== bucket || cache.tintW !== W || cache.tintH !== H) {
     const tint = ctx.createLinearGradient(0, 0, W, H);
-    const a = (0.1 + warmth * 0.24).toFixed(3);
-    tint.addColorStop(0, `rgba(255, 174, 92, ${a})`);
-    tint.addColorStop(0.5, `rgba(255, 138, 82, ${(a * 0.55).toFixed(3)})`);
-    tint.addColorStop(1, `rgba(58, 48, 104, ${(0.08 + (1 - warmth) * 0.12).toFixed(3)})`);
+    // Golden hour is warm and low; deep night is a cold violet, and dawn cools toward noon.
+    const topR = Math.round(255 - night * 168);
+    const topG = Math.round(174 - night * 84);
+    const topB = Math.round(92 + night * 78);
+    const a = (0.07 + warmth * 0.22) * (1 - night * 0.55) + night * 0.14;
+    tint.addColorStop(0, `rgba(${topR}, ${topG}, ${topB}, ${a.toFixed(3)})`);
+    tint.addColorStop(0.5, `rgba(${Math.round(topR * 0.95)}, ${Math.round(topG * 0.9)}, ${Math.round(topB * 1.05)}, ${(a * 0.6).toFixed(3)})`);
+    tint.addColorStop(1, `rgba(58, 48, 104, ${(0.08 + night * 0.22).toFixed(3)})`);
     cache.tint = tint;
     cache.tintBucket = bucket;
     cache.tintW = W;
@@ -1436,17 +1732,30 @@ function drawAtmosphere(ctx, W, H, world) {
   ctx.fillRect(0, 0, W, H);
   ctx.restore();
 
-  // A warm wash that unifies the palette without washing out the teal water.
+  // The unifying wash: warm cream by day, a deep blue multiply after dark.
   ctx.save();
   ctx.globalCompositeOperation = 'multiply';
-  ctx.fillStyle = 'rgba(255, 221, 178, 0.12)';
+  const mr = Math.round(255 - night * 206);
+  const mg = Math.round(221 - night * 174);
+  const mb = Math.round(178 - night * 92);
+  ctx.fillStyle = `rgba(${mr}, ${mg}, ${mb}, ${(0.12 + night * 0.6).toFixed(3)})`;
   ctx.fillRect(0, 0, W, H);
   ctx.restore();
 
+  // A cool wash pulls the shadows toward moonlight instead of leaving them merely dim.
+  if (night > 0.03) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.fillStyle = `rgba(46, 62, 132, ${(0.12 * night).toFixed(3)})`;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+
+  const vignetteAlpha = 0.34 + night * 0.24;
   if (cache.vignette === null || cache.vignetteBucket !== bucket || cache.vignetteW !== W || cache.vignetteH !== H) {
-    const vignette = ctx.createRadialGradient(W / 2, H / 2, H * 0.22, W / 2, H / 2, H * 0.78);
+    const vignette = ctx.createRadialGradient(W / 2, H / 2, H * 0.2, W / 2, H / 2, H * 0.78);
     vignette.addColorStop(0, 'rgba(24, 16, 24, 0)');
-    vignette.addColorStop(1, 'rgba(24, 16, 24, 0.38)');
+    vignette.addColorStop(1, `rgba(20, 14, 26, ${vignetteAlpha.toFixed(3)})`);
     cache.vignette = vignette;
     cache.vignetteBucket = bucket;
     cache.vignetteW = W;
@@ -1467,8 +1776,18 @@ export function render(ctx, W, H, world) {
   view.y1 = camera.y + halfHeight;
   ensureGradients(ctx, city);
 
+  // A hard knock shakes the world layer only: the HUD stays put and readable.
+  let shakeX = 0;
+  let shakeY = 0;
+  const shake = world.shake === undefined ? 0 : world.shake.amount;
+  if (shake > 0.25) {
+    const t = world.time * 92;
+    shakeX = Math.sin(t * 1.7) * shake * 0.55 + Math.sin(t * 3.1) * shake * 0.2;
+    shakeY = Math.cos(t * 2.3) * shake * 0.5 + Math.cos(t * 2.9) * shake * 0.18;
+  }
+
   ctx.save();
-  ctx.translate(W / 2, H / 2);
+  ctx.translate(W / 2 + shakeX, H / 2 + shakeY);
   ctx.scale(camera.zoom, camera.zoom);
   ctx.translate(-camera.x, -camera.y);
 
@@ -1489,12 +1808,19 @@ export function render(ctx, W, H, world) {
   drawProps(ctx, city, view, world.time);
   drawBuildings(ctx, city, view);
   drawDecals(ctx, world);
+  drawMissionStart(ctx, world.missionStart, world.time);
+  drawPackages(ctx, world, world.time);
+  drawActivityWorld(ctx, world, world.time);
   drawMissionMarker(ctx, world.mission, world.time);
   drawStreetEntities(ctx, world, world.time);
+  const missionCar = world.missions?.active?.car ?? null;
+  drawTargetTag(ctx, missionCar, world.time);
   drawBullets(ctx, world);
   drawEffects(ctx, world);
   if (world.player.mode !== 'car') drawPlayer(ctx, world.player);
 
   ctx.restore();
   drawAtmosphere(ctx, W, H, world);
+  const night = 1 - Math.max(0, Math.min(1, daylight(world.clock / 60)));
+  if (night > 0.05) drawNightLights(ctx, W, H, world, night);
 }

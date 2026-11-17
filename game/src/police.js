@@ -149,37 +149,42 @@ function updateOfficer(world, officer, dt) {
     officer.downTimer = (officer.downTimer ?? 0) + dt;
     return;
   }
+  const thug = officer.thug === true;
   const player = world.player;
   const target = player.mode === 'car' && player.car !== null ? player.car : player;
   const dx = target.x - officer.x;
   const dy = target.y - officer.y;
   const dist = Math.hypot(dx, dy);
-  if (dist > TUNING.police.officerRange * 2.4 || world.police.wanted === 0) {
+  if (dist > TUNING.police.officerRange * 2.4 || (!thug && world.police.wanted === 0)) {
     officer.gone = true;
     return;
   }
 
   officer.angle += angleDelta(Math.atan2(dy, dx), officer.angle) * (1 - Math.exp(-8 * dt));
   let move = 0;
-  if (dist > 210) move = 1;
-  else if (dist < 130) move = -0.7;
+  const hold = thug ? 165 : 210;
+  const back = thug ? 110 : 130;
+  if (dist > hold) move = 1;
+  else if (dist < back) move = -0.7;
   if (move !== 0) {
-    const stepX = Math.cos(officer.angle) * 142 * move * dt;
-    const stepY = Math.sin(officer.angle) * 142 * move * dt;
+    const speed = thug ? 158 : 142;
+    const stepX = Math.cos(officer.angle) * speed * move * dt;
+    const stepY = Math.sin(officer.angle) * speed * move * dt;
     if (world.city.isFreeCircle(officer.x + stepX, officer.y, 7)) officer.x += stepX;
     if (world.city.isFreeCircle(officer.x, officer.y + stepY, 7)) officer.y += stepY;
     officer.walk += dt * 9;
   }
 
   officer.fireTimer -= dt;
-  if (dist < TUNING.police.shootRange && officer.fireTimer <= 0 && player.hp > 0) {
+  const range = thug ? 400 : TUNING.police.shootRange;
+  if (dist < range && officer.fireTimer <= 0 && player.hp > 0) {
     const aim = Math.atan2(dy, dx) + (world.random() - 0.5) * 0.14;
     const mx = officer.x + Math.cos(aim) * 16;
     const my = officer.y + Math.sin(aim) * 16;
-    spawnBullet(world, mx, my, aim, 'police', TUNING.combat.officerDamage, 880);
+    spawnBullet(world, mx, my, aim, thug ? 'thug' : 'police', TUNING.combat.officerDamage, 880);
     muzzleFlash(world, mx, my, aim);
     world.audio?.gunshot();
-    officer.fireTimer = 1.05 + world.random() * 0.95;
+    officer.fireTimer = (thug ? 0.85 : 1.05) + world.random() * 0.95;
   }
 }
 
@@ -267,18 +272,19 @@ export function placePoliceUnit(world, x, y, angle, speed = 0) {
   return car;
 }
 
-/** An officer at an exact spot, for the mission frame. */
+/** An officer at an exact spot, for the mission frame. A `thug` is crew, not law. */
 export function placeOfficer(world, x, y, angle, opts = {}) {
   const officer = {
     x,
     y,
     angle,
     hp: opts.hp ?? TUNING.police.officerHp,
-    maxHp: TUNING.police.officerHp,
+    maxHp: opts.hp ?? TUNING.police.officerHp,
     phase: world.random() * 6.28,
     walk: 0,
     fireTimer: opts.fireTimer ?? 1.2,
     down: opts.down ?? false,
+    thug: opts.thug ?? false,
     wobble: world.random() * 6.28,
   };
   world.officers.push(officer);

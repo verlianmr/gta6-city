@@ -86,6 +86,14 @@ export const COLOURS = {
   muzzle: '#fff6cf',
   smoke: '#5a5552',
   mission: '#ffd34d',
+  missionDeep: '#c98a1e',
+  race: '#5fd0e0',
+  package: '#ffe08a',
+  thug: '#d2553f',
+  thugDark: '#8d2f28',
+  night: '#2a2f52',
+  toastBg: 'rgba(20, 17, 24, 0.92)',
+  fail: '#ff6a58',
   pedShirts: ['#e07a5f', '#5fa8a0', '#f0b45c', '#c86b7a', '#6d8f57', '#5f7fa8', '#e2c6a0', '#b85f76'],
   pedPants: ['#3d4f63', '#4a4340', '#5b5f6b', '#6a5546', '#394a52'],
   pedSkin: ['#c98b63', '#a9704b', '#e0b08a', '#8a5a3c', '#d9a077'],
@@ -158,6 +166,17 @@ export const TUNING = {
     officerDamage: 7,
     regenDelay: 9,
     regenRate: 4,
+  },
+  missions: {
+    markerRadius: 78,
+    checkpointRadius: 96,
+    retryHealth: 100,
+  },
+  activities: {
+    packageReward: 250,
+    packageReach: 30,
+    raceReach: 86,
+    rampageTime: 45,
   },
 };
 

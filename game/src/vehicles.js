@@ -181,6 +181,7 @@ export function damageCar(world, car, amount, hitX = car.x, hitY = car.y) {
   if (car.hp > 0) return;
   car.hp = 0;
   car.dead = true;
+  car.wrecked = true;
   car.driver = null;
   car.parked = true;
   car.throttle = 0;
@@ -204,6 +205,10 @@ export function damageCar(world, car, amount, hitX = car.x, hitY = car.y) {
   }
   if (world.decals.length < 80) world.decals.push({ type: 'scorch', x: car.x, y: car.y, r: 24, life: 40, max: 40 });
   world.audio?.crash(1.4);
+  if (world.shake !== undefined) {
+    world.shake.amount = Math.min(18, world.shake.amount + 9);
+    world.shake.time = 0.42;
+  }
   if (world.playerCar === car) {
     exitCar(world, true);
     hurtPlayer(world, 16);
@@ -310,6 +315,10 @@ function wallHit(world, car, impact) {
   if (car.crashTimer > 0) return;
   car.crashTimer = 0.3;
   world.audio?.crash(Math.min(1.6, impact / 420));
+  if (car === world.playerCar && world.shake !== undefined) {
+    world.shake.amount = Math.min(16, world.shake.amount + Math.min(9, impact / 90));
+    world.shake.time = 0.34;
+  }
   damageCar(world, car, (impact - TUNING.vehicle.crashSpeed) * 0.07, car.x, car.y);
   sparks(world, car.x + Math.cos(car.angle) * car.length * 0.4, car.y + Math.sin(car.angle) * car.length * 0.4, car.angle, 4);
 }
@@ -421,6 +430,10 @@ export function resolveVehicleCollisions(world) {
           damageCar(world, a, impact * 0.035, (ax + bx) / 2, (ay + by) / 2);
           damageCar(world, b, impact * 0.035, (ax + bx) / 2, (ay + by) / 2);
           if (a.crashTimer <= 0 && b.crashTimer <= 0) world.audio?.crash(Math.min(1.4, impact / 380));
+          if ((a === world.playerCar || b === world.playerCar) && world.shake !== undefined) {
+            world.shake.amount = Math.min(14, world.shake.amount + Math.min(8, impact / 110));
+            world.shake.time = 0.32;
+          }
           a.crashTimer = 0.25;
           b.crashTimer = 0.25;
         }
